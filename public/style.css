@@ -12,6 +12,9 @@ body {
     font-optical-sizing: auto;
     font-weight: 100;
     font-style: normal;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     background-color: rgb(28,32,45);
 }
 
@@ -156,12 +159,12 @@ button {
 
 
 #usersParent {
-    height: 50vh;
-    width: 100vw;
     background: url("./assets/background.gif");
     background-size: cover;
     position: relative;
     overflow: hidden;
+    height: 50vh;
+    width: 50vh;
 }
 
 .user-div {
