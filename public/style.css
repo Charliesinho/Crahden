@@ -1,0 +1,184 @@
+@import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&family=Tiny5&display=swap');
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    /* display: flex; */
+    /* justify-content: center; */
+    /* align-items: center; */
+    height: 100vh;
+    font-family: "Pixelify Sans", serif;
+    font-optical-sizing: auto;
+    font-weight: 100;
+    font-style: normal;
+    background-color: rgb(28,32,45);
+}
+
+#chat-container {
+    width: 100vw;
+    height: 50vh;
+    overflow: hidden;
+    /* border: 1px solid #ddd; */
+    border-radius: 5px;
+    /* padding: 10px; */
+}
+
+#messages {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    height: calc(80% - 20px);
+    overflow-y: auto;
+    /* border: 1px solid #ddd; */
+    border-radius: 5px;
+    /* padding: 5px; */
+    /* margin-bottom: 10px; */
+    padding-bottom: 20px;
+  /* Hides the horizontal scrollbar */
+}
+
+#messages::-webkit-scrollbar {
+    display: none; /* For Chrome, Safari, and Edge */
+}
+
+#form {
+    display: flex;
+    align-items: center;
+    width: 90vw;
+    margin-left: 5vw;
+
+}
+
+#input {
+    flex: 1;
+    /* padding: 5px; */
+    /* border: 1px solid #ddd; */
+    /* border-radius: 5px; */
+    font-family: "Pixelify Sans", serif;
+    font-optical-sizing: auto;
+    font-weight: 100;
+    font-style: normal;
+    background-color: rgb(28,32,45);
+    border: solid 1px rgb(84,128,162);
+    /* width: 50px !important; */
+    height: 50px;
+    padding-left: 5vw;
+    color: white;
+}
+
+button {
+    /* padding: 5px 10px; */
+    border: none;
+    background-color: rgb(84,128,162);
+    font-family: "Pixelify Sans", serif;
+    font-optical-sizing: auto;
+    font-weight: 100;
+    font-style: normal;
+    color: white;
+    /* border-radius: 5px; */
+    cursor: pointer;
+    height: 50px;
+    width: 50px;
+    margin-left: 5vw;
+}
+
+/* System messages (join/leave) */
+.system-message {
+    color: rgb(84,128,162);
+    font-style: italic;
+    text-align: center;
+}
+
+/* My messages (right-aligned) */
+.my-message {
+    text-align: right;
+    margin-right: 5vw;
+    margin-top: 15px;
+    position: relative;
+}
+
+.my-id {
+    display: block;
+    font-size: 0.8em;
+    color: rgb(84, 128, 162);
+    margin-bottom: 2px;
+    display: inline-block;
+    position: absolute;
+    right: 7px;
+    top: -7px;
+    background: rgb(28, 32, 45);
+    padding: 0 7px;
+}
+
+.my-message span:nth-child(2) {
+    background-color: none;
+    border: solid 2px rgb(84,128,162);
+    color: white;
+    padding: 10px 10px;
+    /* border-radius: 10px; */
+    display: inline-block;
+    max-width: 70%;
+    word-wrap: break-word;
+}
+
+/* Other messages (left-aligned) */
+.other-message {
+    text-align: left;
+    margin-left: 5vw;
+    margin-top: 15px;
+    position: relative;
+}
+
+.other-id {
+    display: block;
+    font-size: 0.8em;
+    color: rgb(84, 128, 162);
+    margin-bottom: 2px;
+    display: inline-block;
+    position: absolute;
+    left: 7px;
+    top: -7px;
+    background: rgb(28, 32, 45);
+    padding: 0 7px;
+}
+
+.other-message span:nth-child(2) {
+    background-color: none;
+    border: solid 2px rgb(76 139 77);
+    color: white;
+    padding: 10px 10px;
+    /* border-radius: 10px; */
+    display: inline-block;
+    max-width: 70%;
+    word-wrap: break-word;
+}
+
+
+#usersParent {
+    height: 50vh;
+    width: 100vw;
+    background: url("./assets/background.gif");
+    background-size: cover;
+    position: relative;
+    overflow: hidden;
+}
+
+.user-div {
+    background: url("./assets/playerIdle.gif");
+    background-size: cover;
+    border-radius: 5px;
+    color: #33333300;
+    width: 30px;
+    height: 50px;
+    position: absolute;
+    bottom: 18.7%;
+    left: 50%;
+}
+
+/* .current-user {
+    background: url("./assets/playerWalkOr.gif");
+    background-size: cover;
+    width: 30px;
+    height: 50px;
+} */
