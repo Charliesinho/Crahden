@@ -177,6 +177,19 @@ button {
     position: absolute;
     bottom: 18.7%;
     left: 50%;
+    cursor: pointer;
+}
+
+#campFire {
+    position: absolute;
+    left: 49.6%;
+    bottom: 17.3%;
+    transform: translate(-50%, 0);
+    background: url("./assets/fireOn.gif");
+    background-size: cover;
+    width: 79px;
+    height: 56px;
+    cursor: pointer;
 }
 
 /* .current-user {

@@ -5,6 +5,7 @@ const form = document.getElementById('form');
 const input = document.getElementById('input');
 const messages = document.getElementById('messages');
 const usersParent = document.getElementById('usersParent');
+const campFire = document.getElementById('campFire');
 const users = {};
 
 // Get this user's ID
@@ -150,3 +151,28 @@ setInterval(() => {
     }
 }, 100);
 
+let campFireState = false;
+
+campFire.addEventListener("click", function () {
+    console.log("hellooo")
+    if (campFireState) {
+        campFireState = false;
+        campFire.style.background = 'url("./assets/fireOn.gif")'
+    } else {
+        campFireState = true;
+        campFire.style.background = 'url("./assets/fireOff.gif")'
+    }
+    campFire.style.backgroundSize = "cover"
+})
+
+campFire.addEventListener("click", function () {
+    console.log("hellooo")
+    if (campFireState) {
+        campFireState = false;
+        campFire.style.background = 'url("./assets/fireOn.gif")'
+    } else {
+        campFireState = true;
+        campFire.style.background = 'url("./assets/fireOff.gif")'
+    }
+    campFire.style.backgroundSize = "cover"
+})
