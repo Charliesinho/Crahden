@@ -1,23 +1,130 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">    
-    <title>Chat App</title>
-    <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Crahden</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div id="usersParent">
-        <div id="campFire"></div>
+
+  <!-- ============ LOBBY (create/join room) ============ -->
+  <div id="lobby">
+    <div class="lobby-card">
+      <h1>Crahden</h1>
+      <p class="lobby-sub">Create a room, or join a friend's with their code</p>
+
+      <label class="field-label">Username</label>
+      <input id="username-input" class="text-input" placeholder="Your name" maxlength="14">
+
+      <button id="create-room-btn" class="btn btn-yellow">Create Room</button>
+
+      <div class="lobby-divider"><span>or join with a code</span></div>
+
+      <div class="join-row">
+        <input id="room-code-input" class="text-input" placeholder="ROOM CODE" maxlength="6">
+        <button id="join-room-btn" class="btn btn-green">Join</button>
+      </div>
+
+      <p id="lobby-error"></p>
     </div>
-    <div id="chat-container">
-        <ul id="messages"></ul>
-        <form id="form">
-            <input id="input" autocomplete="off" placeholder="..." />
-            <button>Send</button>
-        </form>
+  </div>
+
+  <!-- ============ GAME (hidden until a room is joined) ============ -->
+  <div id="app" class="hidden">
+    <div id="app-header">
+      <h1 class="app-title">Crahden</h1>
+      <button id="room-code-badge" class="pill" title="Tap to copy code"></button>
     </div>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="script.js"></script>
+
+    <div id="game-layout">
+
+      <!-- LEFT: Map, then chat directly underneath it -->
+      <div id="left-column">
+        <div id="map">
+          <div id="ground"></div>
+        </div>
+
+        <div id="touch-controls">
+          <button id="btn-left" class="touch-btn">◀</button>
+          <button id="btn-interact" class="touch-btn touch-btn-e">E</button>
+          <button id="btn-jump" class="touch-btn">⤒</button>
+          <button id="btn-right" class="touch-btn">▶</button>
+        </div>
+
+        <p id="hint">← → walk · ↑ jump · E interact with trees/lake</p>
+
+        <div id="chatbox">
+          <div id="chat-log"></div>
+          <input id="chat-input" class="text-input" placeholder="Press Enter to chat…" maxlength="80">
+        </div>
+      </div>
+
+      <!-- RIGHT: icon tab bar + the panel it switches -->
+      <div id="right-column">
+        <div id="tab-bar">
+          <button class="tab-icon-btn active" data-tab="inventory" title="Inventory">🎒</button>
+          <button class="tab-icon-btn" data-tab="equipment" title="Equipment">🛡️</button>
+          <button class="tab-icon-btn" data-tab="shop" title="Shop">🛒</button>
+          <button class="tab-icon-btn" data-tab="emotes" title="Emotes">😀</button>
+          <button class="tab-icon-btn" data-tab="skills" title="Skills">⭐</button>
+        </div>
+
+        <div id="tab-content">
+          <div class="tab-pane active" data-pane="inventory">
+            <h3>Inventory</h3>
+            <div id="inventory-grid"></div>
+          </div>
+
+          <div class="tab-pane" data-pane="equipment">
+            <h3>Equipment</h3>
+            <div id="wardrobe-items"></div>
+          </div>
+
+          <div class="tab-pane" data-pane="shop">
+            <h3>Shop</h3>
+            <div id="shop-items"></div>
+          </div>
+
+          <div class="tab-pane" data-pane="emotes">
+            <h3>Emotes</h3>
+            <div id="emoji-row">
+              <button class="emoji-btn" data-emoji="😀">😀</button>
+              <button class="emoji-btn" data-emoji="😂">😂</button>
+              <button class="emoji-btn" data-emoji="😍">😍</button>
+              <button class="emoji-btn" data-emoji="👍">👍</button>
+              <button class="emoji-btn" data-emoji="🔥">🔥</button>
+              <button class="emoji-btn" data-emoji="😢">😢</button>
+              <button class="emoji-btn" data-emoji="😡">😡</button>
+              <button class="emoji-btn" data-emoji="🎉">🎉</button>
+            </div>
+          </div>
+
+          <div class="tab-pane" data-pane="skills">
+            <h3>Skills</h3>
+            <div class="skill-row" data-skill="woodcutting">
+              <span class="skill-name">🪓 Woodcutting</span>
+              <span class="skill-level">Lv 1</span>
+              <div class="skill-bar"><div class="skill-bar-fill"></div></div>
+            </div>
+            <div class="skill-row" data-skill="fishing">
+              <span class="skill-name">🎣 Fishing</span>
+              <span class="skill-level">Lv 1</span>
+              <div class="skill-bar"><div class="skill-bar-fill"></div></div>
+            </div>
+            <div class="skill-row" data-skill="research">
+              <span class="skill-name">🔬 Research</span>
+              <span class="skill-level">Lv 1</span>
+              <div class="skill-bar"><div class="skill-bar-fill"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="index.js"></script>
 </body>
 </html>

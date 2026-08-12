@@ -1,16 +1,13 @@
 {
-  "name": "crahden",
+  "name": "2d-multiplayer-map",
   "version": "1.0.0",
-  "description": "",
+  "description": "Small 2D multiplayer map — move and jump with arrow keys, synced over Socket.IO",
   "main": "server.js",
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node server.js"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "express": "^4.21.2",
-    "socket.io": "^4.8.1"
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
   }
 }
