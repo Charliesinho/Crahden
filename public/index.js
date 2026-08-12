@@ -50,8 +50,8 @@ const CONFIG = {
   },
 
   SHOP_CATALOG: {
-    fire: { id: 'fire', name: 'Fire', price: 1000, currency: 'logs', spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif', x: 200 },
-    house: { id: 'house', name: 'House', price: 1000, currency: 'logs', sprite: 'assets/house.gif', x: 320 },
+    fire: { id: 'fire', name: 'Fire', price: 10, currency: 'logs', spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif', x: 200 },
+    house: { id: 'house', name: 'House', price: 10, currency: 'logs', sprite: 'assets/house.gif', x: 320 },
   },
 
   MONSTER_SPRITES: { flodder: 'assets/flodder.gif', fakeflodder: 'assets/fakeflodder.gif' },
@@ -64,10 +64,7 @@ const CONFIG = {
 function pct(value) { return `${(value / CONFIG.MAP_SIZE) * 100}%`; }
 function outfitSprite(state, outfitId) { return `assets/${state}${outfitId}.gif`; }
 
-const socket = io("https://crahden.up.railway.app/", {
-  transports: ["websocket"],
-  withCredentials: true   // <--- important
-});
+const socket = io();
 const mapEl = document.getElementById('map');
 const groundEl = document.getElementById('ground');
 
@@ -588,6 +585,12 @@ socket.on('minigameStarted', ({ type, state }) => { activeMinigame = { type, sta
 socket.on('minigameEnded', ({ winnerId, type }) => { hideMinigameUI(); appendChatLog('System', winnerId === myId ? `You won the ${type} minigame and earned research XP!` : `Player ${winnerId} won the ${type} minigame.`); activeMinigame = null; });
 socket.on('grantResearchXp', ({ id, xp }) => { if (id === myId) addXp('research', xp || CONFIG.MINIGAME_REWARD_XP); });
 
+// Wrong guess/attempt — let the active minigame's UI reset itself instead of
+// just sitting there with no feedback.
+socket.on('minigameFail', () => {
+  document.getElementById('minigame-overlay')?._onFail?.();
+});
+
 function showMinigameUI(type, state) {
   const overlay = document.createElement('div');
   overlay.id = 'minigame-overlay';
@@ -609,16 +612,88 @@ function showMinigameUI(type, state) {
 
   if (type === 'guessWord') {
     const prompt = document.createElement('div'); prompt.textContent = 'Guess the word!';
+    const maskedEl = document.createElement('div');
+    maskedEl.textContent = state.masked || '_'.repeat(state.length || 5);
+    maskedEl.style.fontSize = '28px';
+    maskedEl.style.letterSpacing = '6px';
     const input = document.createElement('input'); input.className = 'text-input'; input.placeholder = 'Type your guess and press Enter'; input.style.width = '300px';
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const attempt = input.value.trim(); if (!attempt) return; socket.emit('minigameSubmit', { attempt }); } });
-    overlay.appendChild(prompt); overlay.appendChild(input);
+    overlay.appendChild(prompt); overlay.appendChild(maskedEl); overlay.appendChild(input);
+    setTimeout(() => input.focus(), 50);
+    overlay._onFail = () => {
+      input.value = '';
+      input.focus();
+      maskedEl.style.color = '#e06060';
+      setTimeout(() => { maskedEl.style.color = ''; }, 400);
+    };
   } else if (type === 'rhythm') {
-    const prompt = document.createElement('div'); prompt.textContent = 'Rhythm: repeat the sequence (tap 0/1)';
+    // Watch the pattern play out, then repeat it by tapping the two buttons
+    // (or ←/→) in the same order.
     const seq = state.sequence || [];
-    const seqEl = document.createElement('div'); seqEl.textContent = `Sequence length: ${seq.length}`;
-    const input = document.createElement('input'); input.className = 'text-input'; input.placeholder = 'Enter sequence like 010101'; input.style.width = '300px';
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const raw = input.value.trim(); const attempt = raw.split('').map(c => Number(c)); socket.emit('minigameSubmit', { attempt }); } });
-    overlay.appendChild(prompt); overlay.appendChild(seqEl); overlay.appendChild(input);
+    const title = document.createElement('div'); title.textContent = 'Watch the pattern…';
+    const beatsRow = document.createElement('div');
+    beatsRow.style.display = 'flex';
+    beatsRow.style.gap = '10px';
+
+    const dots = seq.map(() => {
+      const d = document.createElement('div');
+      d.style.width = '22px';
+      d.style.height = '22px';
+      d.style.borderRadius = '50%';
+      d.style.background = '#444';
+      d.style.transition = 'background 0.15s, transform 0.15s';
+      beatsRow.appendChild(d);
+      return d;
+    });
+
+    const inputRow = document.createElement('div');
+    inputRow.style.display = 'none';
+    inputRow.style.gap = '16px';
+    const leftBtn = document.createElement('button'); leftBtn.className = 'btn btn-blue'; leftBtn.textContent = '◀';
+    const rightBtn = document.createElement('button'); rightBtn.className = 'btn btn-blue'; rightBtn.textContent = '▶';
+    inputRow.appendChild(leftBtn); inputRow.appendChild(rightBtn);
+
+    overlay.appendChild(title);
+    overlay.appendChild(beatsRow);
+    overlay.appendChild(inputRow);
+
+    const attempt = [];
+    const flashDot = (i) => {
+      dots[i].style.background = seq[i] === 0 ? '#4fa8d8' : '#e06060';
+      dots[i].style.transform = 'scale(1.3)';
+      setTimeout(() => { dots[i].style.transform = 'scale(1)'; }, 220);
+    };
+    const submitTap = (val) => {
+      if (attempt.length >= seq.length) return;
+      const i = attempt.length;
+      attempt.push(val);
+      dots[i].style.background = val === seq[i] ? '#7cb342' : '#e06060';
+      if (attempt.length === seq.length) {
+        setTimeout(() => socket.emit('minigameSubmit', { attempt }), 200);
+      }
+    };
+    leftBtn.addEventListener('click', () => submitTap(0));
+    rightBtn.addEventListener('click', () => submitTap(1));
+    const keyHandler = (e) => {
+      if (inputRow.style.display === 'none') return;
+      if (e.key === 'ArrowLeft') submitTap(0);
+      if (e.key === 'ArrowRight') submitTap(1);
+    };
+    document.addEventListener('keydown', keyHandler);
+    overlay._cleanup = () => document.removeEventListener('keydown', keyHandler);
+    overlay._onFail = () => {
+      attempt.length = 0;
+      dots.forEach((d) => { d.style.background = '#333'; });
+      title.textContent = 'Not quite — try again (tap or ←/→)';
+    };
+
+    const BEAT_MS = 500;
+    seq.forEach((_, i) => setTimeout(() => flashDot(i), i * BEAT_MS));
+    setTimeout(() => {
+      title.textContent = 'Your turn! Repeat it (tap or ←/→)';
+      dots.forEach((d) => { d.style.background = '#333'; });
+      inputRow.style.display = 'flex';
+    }, seq.length * BEAT_MS + 400);
   }
 
   const cancel = document.createElement('button'); cancel.className = 'btn btn-sm btn-red'; cancel.textContent = 'Close'; cancel.addEventListener('click', hideMinigameUI);
@@ -626,7 +701,10 @@ function showMinigameUI(type, state) {
   document.body.appendChild(overlay);
 }
 
-function hideMinigameUI() { const el = document.getElementById('minigame-overlay'); if (el) el.remove(); }
+function hideMinigameUI() {
+  const el = document.getElementById('minigame-overlay');
+  if (el) { el._cleanup?.(); el.remove(); }
+}
 
 let movedThisFrame = false;
 let isJumping = false;
@@ -697,7 +775,7 @@ function showMonster(type, duration) {
   container.style.overflow = 'hidden';
   container.style.pointerEvents = 'none';
   container.style.transform = 'translateX(-100%)';
-  container.style.transition = `transform ${CONFIG.MONSTER_SLIDE_DURATION}ms linear`;
+  container.style.transition = 'none'; // set below, after a forced reflow, so it reliably animates
   mapEl.appendChild(container);
 
   const img = document.createElement('img');
@@ -713,6 +791,11 @@ function showMonster(type, duration) {
   img.src = src;
   container.appendChild(img);
 
+  // Force layout to commit the starting position before enabling the
+  // transition — without this the very first slide-in sometimes just
+  // snaps into place instead of animating (the "clumsy" jump-cut).
+  void container.offsetWidth;
+  container.style.transition = `transform ${CONFIG.MONSTER_SLIDE_DURATION}ms ease-in-out`;
   requestAnimationFrame(() => { container.style.transform = 'translateX(0%)'; });
 
   const stay = duration || CONFIG.MONSTER_STAY_MS;
@@ -731,27 +814,25 @@ socket.on('monsterSpawn', ({ type, duration }) => {
 });
 
 // When a player dies: show dead sprite and lock local controls until respawn
-socket.on('playerDied', ({ id, cause }) => {
+// Note: the public "X died from the flodder" announcement already arrives as
+// its own system chat message from the server — this handler only drives the
+// visual/local-state side of a death, so it doesn't duplicate that line.
+socket.on('playerDied', ({ id }) => {
   if (id === myId) {
-    // clear inventory
     Object.keys(inventory).forEach(k => inventory[k] = 0);
     renderInventory();
 
-    // set dead state locally
     isDead = true;
     if (localEl) {
       localEl.style.backgroundImage = `url(${CONFIG.SPRITES.dead})`;
       localEl.classList.add('dead');
     }
-    appendChatLog('System', 'You died and lost your inventory.');
   } else {
-    // remote player: show dead sprite
     const el = remoteEls[id];
     if (el) {
       el.style.backgroundImage = `url(${CONFIG.SPRITES.dead})`;
       el.classList.add('dead');
     }
-    appendChatLog('System', `${id} died from ${cause}`);
   }
 });
 

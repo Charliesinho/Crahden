@@ -30,9 +30,10 @@ const CONFIG = {
 const MONSTER_MIN_MS = 60 * 1000;
 const MONSTER_MAX_MS = 5 * 60 * 1000;
 const MONSTER_DISPLAY_MS = 20 * 1000;   // visible time
-const MONSTER_GRACE_MS = 5 * 1000;      // 5s grace before checks begin (applies to both flodder & fakeflodder)
-const FAKE_DEATH_THRESHOLD_MS = 1000;   // 1s threshold for fakeflodder stop-jump / stationary
-const RESPAWN_MS = MONSTER_DISPLAY_MS;  // respawn delay after death (20s)
+const MONSTER_GRACE_MS = 5 * 1000;      // 5s grace before any death checks begin
+const FAKE_JUMP_GRACE_MS = 2 * 1000;    // fakeflodder: die if you haven't jumped in this long
+const FIRE_RESCUE_WINDOW_MS = 4 * 1000; // flodder + fire off: time to relight it before everyone dies
+const RESPAWN_MS = 5 * 1000;            // respawn delay after death
 
 const rooms = {};
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -57,8 +58,8 @@ function makePlayer(username) {
 }
 
 const SHOP_CATALOG = {
-  fire: { id: 'fire', name: 'Fire', price: 1000, currency: 'logs', x: 200, spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif', bought: false, contributions: {} },
-  house: { id: 'house', name: 'House', price: 1000, currency: 'logs', x: 320, sprite: 'assets/house.gif', next: { id: 'house2', priceMultiplier: 2, sprite: 'assets/house2.gif' }, bought: false, contributions: {} },
+  fire: { id: 'fire', name: 'Fire', price: 10, currency: 'logs', x: 200, spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif', bought: false, contributions: {} },
+  house: { id: 'house', name: 'House', price: 10, currency: 'logs', x: 320, sprite: 'assets/house.gif', next: { id: 'house2', priceMultiplier: 2, sprite: 'assets/house2.gif' }, bought: false, contributions: {} },
 };
 
 function createRoomState() {
@@ -101,21 +102,87 @@ function scheduleMonsterForRoom(code) {
   room.monsterTimer = setTimeout(() => spawnMonster(code), delay);
 }
 
+function sysMsg(code, text) {
+  io.to(code).emit('playerChat', { id: 'system', username: 'System', text });
+}
+
 function spawnMonster(code) {
   const room = rooms[code];
   if (!room) return;
   const type = Math.random() < 0.6 ? 'flodder' : 'fakeflodder';
   const now = Date.now();
-  room.monsterActive = { type, startedAt: now, endsAt: now + MONSTER_DISPLAY_MS };
+  room.monsterActive = {
+    type,
+    startedAt: now,
+    graceEndsAt: now + MONSTER_GRACE_MS,
+    movementKillsActive: false,  // flodder only: becomes true once grace passes, if the fire is on
+    fireRescueWindowOpen: false, // flodder only: true while waiting to see if someone relights the fire
+  };
 
-  io.to(code).emit('monsterSpawn', { type, duration: MONSTER_DISPLAY_MS });
-  io.to(code).emit('playerChat', { id: 'system', username: 'System', text: `${type === 'flodder' ? 'A flooder appears!' : 'A strange shadow appears...'}` });
+  io.to(code).emit('monsterSpawn', { type, duration: MONSTER_DISPLAY_MS, grace: MONSTER_GRACE_MS });
+  sysMsg(code, type === 'flodder'
+    ? 'A flodder appears! Stay by the fire, and don\'t move once it settles in...'
+    : 'A strange shadow appears... keep jumping, or it will get you!');
 
-  // After display time clear active and schedule next spawn
-  setTimeout(() => {
-    room.monsterActive = null;
-    scheduleMonsterForRoom(code);
-  }, MONSTER_DISPLAY_MS);
+  if (type === 'flodder') {
+    room.monsterActive.graceTimer = setTimeout(() => resolveFlodderFireCheck(code), MONSTER_GRACE_MS);
+  } else {
+    room.monsterActive.jumpCheckInterval = setInterval(() => checkFakeflodderDeaths(code), 400);
+  }
+
+  room.monsterActive.endTimer = setTimeout(() => endMonsterEvent(code), MONSTER_DISPLAY_MS);
+}
+
+// Called once, exactly when the grace period for a real flodder ends.
+function resolveFlodderFireCheck(code) {
+  const room = rooms[code];
+  const ma = room && room.monsterActive;
+  if (!ma || ma.type !== 'flodder') return;
+
+  if (room.fireOn) {
+    // Fire protects everyone from the flodder itself — but moving now gives you away.
+    ma.movementKillsActive = true;
+    sysMsg(code, 'The fire holds it back... but don\'t move!');
+  } else {
+    // No fire = no protection. Give the room a few seconds to relight it.
+    ma.fireRescueWindowOpen = true;
+    sysMsg(code, 'The fire is out! Someone light it now, or everyone dies!');
+    ma.rescueTimer = setTimeout(() => {
+      if (!ma.fireRescueWindowOpen) return; // already saved (or event already ended)
+      ma.fireRescueWindowOpen = false;
+      sysMsg(code, 'Nobody lit the fire in time...');
+      Object.keys(room.players).forEach((pid) => killPlayerInRoom(code, pid, 'the flodder'));
+    }, FIRE_RESCUE_WINDOW_MS);
+  }
+}
+
+// Polled while a fakeflodder is active (after its own grace period).
+function checkFakeflodderDeaths(code) {
+  const room = rooms[code];
+  const ma = room && room.monsterActive;
+  if (!ma || ma.type !== 'fakeflodder') return;
+  const now = Date.now();
+  if (now < ma.graceEndsAt) return;
+
+  Object.entries(room.players).forEach(([pid, p]) => {
+    if (p.dead) return;
+    const lastJump = p.lastJumpAt || ma.startedAt;
+    if (now - lastJump > FAKE_JUMP_GRACE_MS) {
+      killPlayerInRoom(code, pid, 'the flodder');
+    }
+  });
+}
+
+function endMonsterEvent(code) {
+  const room = rooms[code];
+  if (!room || !room.monsterActive) return;
+  const ma = room.monsterActive;
+  if (ma.jumpCheckInterval) clearInterval(ma.jumpCheckInterval);
+  if (ma.graceTimer) clearTimeout(ma.graceTimer);
+  if (ma.rescueTimer) clearTimeout(ma.rescueTimer);
+  if (ma.endTimer) clearTimeout(ma.endTimer);
+  room.monsterActive = null;
+  scheduleMonsterForRoom(code);
 }
 
 function killPlayerInRoom(code, pid, cause) {
@@ -149,13 +216,9 @@ io.on('connection', (socket) => {
     const room = rooms[code];
     room.players[socket.id] = makePlayer(username);
 
-    // per-player flags
+    // per-player flags used by the monster-event logic
     room.players[socket.id].dead = false;
-    room.players[socket.id].movedDuringMonster = false;
-    room.players[socket.id].fireToggledDuringEvent = false;
-    room.players[socket.id].lastJumpStopAt = null;
-    room.players[socket.id].inFakeEvent = false;
-    room.players[socket.id].lastMoveAt = Date.now();
+    room.players[socket.id].lastJumpAt = Date.now();
 
     socket.emit('roomJoined', {
       code,
@@ -201,43 +264,13 @@ io.on('connection', (socket) => {
     room.players[socket.id] = { ...room.players[socket.id], ...data };
     const p = room.players[socket.id];
 
-    if (data.movedDuringMonster) p.movedDuringMonster = true;
-    if (data.isMoving) p.lastMoveAt = Date.now();
-    if (typeof data.isJumping !== 'undefined') {
-      if (!data.isJumping) {
-        p.lastJumpStopAt = Date.now();
-        p.inFakeEvent = true;
-      } else {
-        p.lastJumpStopAt = null;
-      }
-    }
+    if (data.isJumping) p.lastJumpAt = Date.now(); // used by the fakeflodder check above
 
-    // If monster active and grace passed, evaluate immediate rules
+    // Real flodder: once movementKillsActive is true (fire held it back, grace passed),
+    // moving even a little is instant death.
     const ma = room.monsterActive;
-    if (ma && !p.dead) {
-      const now = Date.now();
-
-      // Only start checking after grace period for both types
-      if (now >= ma.startedAt + MONSTER_GRACE_MS) {
-        if (ma.type === 'flodder') {
-          // If fire is ON after grace -> everyone dies immediately
-          if (room.fireOn) {
-            Object.keys(room.players).forEach((pid) => {
-              if (room.players[pid] && !room.players[pid].dead) killPlayerInRoom(code, pid, 'flodder');
-            });
-          } else {
-            // fire is OFF -> players who moved during monster die
-            if (p.movedDuringMonster) killPlayerInRoom(code, socket.id, 'flodder');
-          }
-        }
-
-        if (ma.type === 'fakeflodder') {
-          // Fake: if player stopped jumping > threshold OR stationary > threshold -> die
-          const stoppedJumpTooLong = p.lastJumpStopAt && (now - p.lastJumpStopAt) > FAKE_DEATH_THRESHOLD_MS && p.inFakeEvent;
-          const stationaryTooLong = p.lastMoveAt && (now - p.lastMoveAt) > FAKE_DEATH_THRESHOLD_MS && p.inFakeEvent;
-          if (stoppedJumpTooLong || stationaryTooLong) killPlayerInRoom(code, socket.id, 'fakeflodder');
-        }
-      }
+    if (ma && ma.type === 'flodder' && ma.movementKillsActive && !p.dead && data.isMoving) {
+      killPlayerInRoom(code, socket.id, 'the flodder');
     }
 
     socket.to(code).emit('playerUpdated', { id: socket.id, player: room.players[socket.id] });
@@ -308,15 +341,19 @@ io.on('connection', (socket) => {
 
     const turningOn = !room.fireOn;
     room.fireOn = turningOn;
-
-    // If a monster is active and the player turns the fire ON while monster is present:
-    // only that player dies immediately.
-    if (room.monsterActive && turningOn) {
-      if (room.players[socket.id]) room.players[socket.id].fireToggledDuringEvent = true;
-      killPlayerInRoom(code, socket.id, 'flodder (toggled fire during event)');
-    }
-
     io.to(code).emit('fireToggled', { fireOn: room.fireOn });
+
+    // Only dangerous in one specific situation: a real flodder is out, the fire
+    // was off, and we're in the short rescue window after the grace period.
+    // Relighting it there saves everyone else — at the cost of whoever did it.
+    const ma = room.monsterActive;
+    if (turningOn && ma && ma.type === 'flodder' && ma.fireRescueWindowOpen) {
+      ma.fireRescueWindowOpen = false;
+      if (ma.rescueTimer) clearTimeout(ma.rescueTimer);
+      const name = room.players[socket.id]?.username || 'Someone';
+      sysMsg(code, `${name} relit the fire and saved everyone else... at a cost.`);
+      killPlayerInRoom(code, socket.id, 'the flodder (relit the fire)');
+    }
   });
 
   socket.on('startMinigame', ({ type } = {}) => {
@@ -326,17 +363,19 @@ io.on('connection', (socket) => {
     if (room.minigame) return;
 
     const mg = { type, startedAt: Date.now(), players: {}, state: {} };
+    let publicState = {};
     if (type === 'guessWord') {
       const words = ['apple', 'river', 'cabin', 'flame', 'stone', 'ghost', 'music'];
-      mg.state.word = words[Math.floor(Math.random() * words.length)];
-      mg.state.masked = mg.state.word.replace(/./g, '_');
+      mg.state.word = words[Math.floor(Math.random() * words.length)]; // kept server-side only
+      publicState = { masked: mg.state.word.replace(/./g, '_ ').trim(), length: mg.state.word.length };
     } else if (type === 'rhythm') {
       const seq = Array.from({ length: 6 }, () => (Math.random() < 0.5 ? 0 : 1));
       mg.state.sequence = seq;
+      publicState = { sequence: seq }; // the sequence itself IS the clue (played back client-side), safe to send
     } else return;
 
     room.minigame = mg;
-    io.to(code).emit('minigameStarted', { type, state: mg.state });
+    io.to(code).emit('minigameStarted', { type, state: publicState });
   });
 
   socket.on('minigameSubmit', ({ attempt } = {}) => {
@@ -383,4 +422,3 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
 });
-
