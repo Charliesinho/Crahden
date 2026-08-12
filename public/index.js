@@ -64,7 +64,10 @@ const CONFIG = {
 function pct(value) { return `${(value / CONFIG.MAP_SIZE) * 100}%`; }
 function outfitSprite(state, outfitId) { return `assets/${state}${outfitId}.gif`; }
 
-const socket = io();
+const socket = io("https://crahden.up.railway.app/", {
+  transports: ["websocket"],
+  withCredentials: true   // <--- important
+});
 const mapEl = document.getElementById('map');
 const groundEl = document.getElementById('ground');
 
