@@ -121,7 +121,7 @@ img, #map, .player, .tree, .lake { image-rendering: pixelated; }
   background: var(--accent-yellow);
   border-radius: 0px;
   font-size: 10px;
-  padding: 10px 16px;
+  padding: 10px 10px;
 }
 
 /* ============================================================
@@ -203,7 +203,7 @@ img, #map, .player, .tree, .lake { image-rendering: pixelated; }
   align-items: center;
   justify-content: space-between;
   margin-bottom: 14px;
-  flex-wrap: wrap;
+  /* flex-wrap: wrap; */
   gap: 8px;
 }
 .app-title { font-size: 14px; line-height: 1.6; }

@@ -52,8 +52,19 @@ const CONFIG = {
   },
 
   SHOP_CATALOG: {
-    fire: { id: 'fire', name: 'Fire', price: 10, currency: 'logs', spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif', x: 200, y: 0, width: 80, height: 80 },
-    house: { id: 'house', name: 'House', price: 10, currency: 'logs', sprite: 'assets/house.gif', x: 320, y: 0, width: 140, height: 140 },
+    fire: {
+      id: 'fire', name: 'Fire', price: 10, currency: 'logs',
+      x: 195, y: 0.2, width: 110, height: 110,
+      spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif',
+      bought: false, contributions: {},
+    },
+    house: {
+      id: 'house', name: 'House', price: 10, currency: 'logs',
+      x: -35, y: -86, width: 500, height: 500,
+      sprite: 'assets/house.gif',
+      next: { id: 'house2', priceMultiplier: 2, sprite: 'assets/house2.gif' },
+      bought: false, contributions: {},
+    },
     platform: { id: 'platform', name: 'Platform', price: 10, currency: 'logs', sprite: 'assets/platform.gif', x: 210, y: 0, width: 100, height: 24 },
   },
 
