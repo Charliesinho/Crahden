@@ -100,7 +100,7 @@ const SHOP_CATALOG = {
   platform: {
     id: 'platform', name: 'Platform', price: 10, currency: 'logs',
     x: 150, y: 7.2, width: 75, height: 75, // matches: left 30%, bottom 18.8%, width/height 15% of the map
-    surfaceOffset: 0, // nudge the walkable top surface up(+)/down(-) if it doesn't line up with the sprite's art
+    surfaceOffset: -15, // nudge the walkable top surface up(+)/down(-) if it doesn't line up with the sprite's art
     sprite: 'assets/platform.gif',
     isPlatform: true, // marks this (and any future item like it) as safe ground during a lava event AND solid-on-top for landing
     bought: false, contributions: {},

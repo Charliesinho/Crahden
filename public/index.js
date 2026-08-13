@@ -48,7 +48,7 @@ const CONFIG = {
   OUTFITS: {
     knight: { name: 'Knight', price: 50, currency: 'logs' },
     goblin: { name: 'Goblin', price: 500, currency: 'fish' },
-    demon: { name: 'Demon', price: 500, currency: 'logs' },
+    demon: { name: 'Demon', price: 500, currency: 'fish2' },
   },
 
   SHOP_CATALOG: {
@@ -65,7 +65,7 @@ const CONFIG = {
       next: { id: 'house2', priceMultiplier: 2, sprite: 'assets/house2.gif' },
       bought: false, contributions: {},
     },
-    platform: { id: 'platform', name: 'Platform', price: 10, currency: 'logs', sprite: 'assets/platform.gif', x: 150, y: 7.2, width: 75, height: 75, surfaceOffset: 0 },
+    platform: { id: 'platform', name: 'Platform', price: 10, currency: 'logs', sprite: 'assets/platform.gif', x: 150, y: 7.2, width: 75, height: 75, surfaceOffset: -15 },
   },
 
   MONSTER_SPRITES: { flodder: 'assets/flodder.gif', fakeflodder: 'assets/fakeflodder.gif', worren: 'assets/worren.gif' },
