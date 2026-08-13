@@ -60,12 +60,12 @@ const CONFIG = {
     },
     house: {
       id: 'house', name: 'House', price: 10, currency: 'logs',
-      x: -35, y: -86, width: 500, height: 500,
+      x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/house.gif',
       next: { id: 'house2', priceMultiplier: 2, sprite: 'assets/house2.gif' },
       bought: false, contributions: {},
     },
-    platform: { id: 'platform', name: 'Platform', price: 10, currency: 'logs', sprite: 'assets/platform.gif', x: 210, y: 0, width: 100, height: 24 },
+    platform: { id: 'platform', name: 'Platform', price: 10, currency: 'logs', sprite: 'assets/platform.gif', x: 150, y: 7.2, width: 75, height: 75, surfaceOffset: 0 },
   },
 
   MONSTER_SPRITES: { flodder: 'assets/flodder.gif', fakeflodder: 'assets/fakeflodder.gif', worren: 'assets/worren.gif' },
@@ -647,6 +647,25 @@ socket.on('lavaSpawn', ({ duration }) => {
 });
 
 let movedThisFrame = false;
+// Returns the top surface height (logical units above the base ground) of
+// whichever bought isPlatform item overlaps this x, or null if none does.
+// `surfaceOffset` on the item lets you nudge that surface up/down slightly
+// without touching the collision math, in case it doesn't line up exactly
+// with where the sprite's art visually ends.
+function platformTopAt(x) {
+  let top = null;
+  Object.values(clientShop).forEach((item) => {
+    if (!item.bought || !item.isPlatform) return;
+    const left = item.x;
+    const right = item.x + item.width;
+    if (x + CONFIG.CHAR_WIDTH > left && x < right) {
+      const t = (item.y || 0) + item.height + (item.surfaceOffset || 0);
+      if (top === null || t > top) top = t;
+    }
+  });
+  return top;
+}
+
 let isJumping = false;
 
 function loop() {
@@ -655,10 +674,33 @@ function loop() {
     if (keys.ArrowLeft) { localPlayer.x -= CONFIG.MOVE_SPEED; localPlayer.facing = 'left'; moving = true; movedThisFrame = true; }
     if (keys.ArrowRight) { localPlayer.x += CONFIG.MOVE_SPEED; localPlayer.facing = 'right'; moving = true; movedThisFrame = true; }
     localPlayer.x = Math.max(0, Math.min(CONFIG.MAP_SIZE - CONFIG.CHAR_WIDTH, localPlayer.x));
+
     if (keys.ArrowUp && localPlayer.onGround) { localPlayer.vy = CONFIG.JUMP_FORCE; localPlayer.onGround = false; }
+
+    const prevY = localPlayer.y;
     localPlayer.vy -= CONFIG.GRAVITY;
-    localPlayer.y += localPlayer.vy;
-    if (localPlayer.y <= 0) { localPlayer.y = 0; localPlayer.vy = 0; localPlayer.onGround = true; }
+    const nextY = prevY + localPlayer.vy;
+
+    // A platform only catches you if you're actually landing on it from
+    // above this frame (falling, and crossing its top between prevY and
+    // nextY) — walking underneath it at ground level never snaps you up.
+    const pTop = platformTopAt(localPlayer.x);
+    let landLevel = 0; // true ground is always the fallback
+    if (pTop !== null && localPlayer.vy <= 0 && prevY >= pTop && nextY <= pTop) {
+      landLevel = pTop;
+    } else if (pTop !== null && prevY === pTop && nextY <= pTop) {
+      landLevel = pTop; // already resting on it, staying put
+    }
+
+    if (nextY <= landLevel) {
+      localPlayer.y = landLevel;
+      localPlayer.vy = 0;
+      localPlayer.onGround = true;
+    } else {
+      localPlayer.y = nextY;
+      localPlayer.onGround = false; // includes walking off a platform's edge — gravity keeps pulling down from here
+    }
+
     localPlayer.state = !localPlayer.onGround ? 'jump' : (moving ? 'walk' : 'idle');
     isJumping = !localPlayer.onGround;
   } else {

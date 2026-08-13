@@ -25,6 +25,7 @@ const CONFIG = {
   TREE_HITS_TO_DEPLETE: 20,
   ROOM_CODE_LENGTH: 5,
   CHAT_MAX_LENGTH: 140,
+  LAKE: { x: 25, width: 120 }, // static, must match CONFIG.LAKE in public/index.js — trees avoid this range
 };
 
 const MONSTER_MIN_MS = 60 * 1000;
@@ -91,16 +92,17 @@ const SHOP_CATALOG = {
   },
   house: {
     id: 'house', name: 'House', price: 10, currency: 'logs',
-    x: -35, y: -86, width: 500, height: 500,
+    x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
     sprite: 'assets/house.gif',
     next: { id: 'house2', priceMultiplier: 2, sprite: 'assets/house2.gif' },
     bought: false, contributions: {},
   },
   platform: {
     id: 'platform', name: 'Platform', price: 10, currency: 'logs',
-    x: 210, y: 0, width: 100, height: 24,
+    x: 150, y: 7.2, width: 75, height: 75, // matches: left 30%, bottom 18.8%, width/height 15% of the map
+    surfaceOffset: 0, // nudge the walkable top surface up(+)/down(-) if it doesn't line up with the sprite's art
     sprite: 'assets/platform.gif',
-    isPlatform: true, // marks this (and any future item like it) as safe ground during a lava event
+    isPlatform: true, // marks this (and any future item like it) as safe ground during a lava event AND solid-on-top for landing
     bought: false, contributions: {},
   },
 };
@@ -126,12 +128,26 @@ function createRoomState() {
   };
 }
 
-// Trees
+// Trees — picks a spot that doesn't overlap the (static) lake, retrying a
+// few times before falling back to whatever the last attempt landed on.
+function pickTreeX() {
+  const maxX = CONFIG.MAP_SIZE - CONFIG.TREE_SIZE - CONFIG.TREE_MARGIN;
+  const lakeLeft = CONFIG.LAKE.x - CONFIG.TREE_MARGIN;
+  const lakeRight = CONFIG.LAKE.x + CONFIG.LAKE.width + CONFIG.TREE_MARGIN;
+
+  let x;
+  for (let attempt = 0; attempt < 20; attempt++) {
+    x = Math.floor(CONFIG.TREE_MARGIN + Math.random() * (maxX - CONFIG.TREE_MARGIN));
+    const overlapsLake = x + CONFIG.TREE_SIZE > lakeLeft && x < lakeRight;
+    if (!overlapsLake) return x;
+  }
+  return x; // extremely unlikely to be reached, but avoids ever hanging
+}
+
 function trySpawnTree(code) {
   const room = rooms[code];
   if (!room || room.trees.length >= CONFIG.MAX_TREES) return;
-  const maxX = CONFIG.MAP_SIZE - CONFIG.TREE_SIZE - CONFIG.TREE_MARGIN;
-  const x = Math.floor(CONFIG.TREE_MARGIN + Math.random() * (maxX - CONFIG.TREE_MARGIN));
+  const x = pickTreeX();
   room.trees.push({ id: room.nextTreeId++, x, hits: 0 });
   io.to(code).emit('treesUpdate', room.trees);
 }
@@ -315,6 +331,7 @@ function killPlayerInRoom(code, pid, cause) {
   if (!room || !room.players[pid]) return;
   const p = room.players[pid];
   if (p.dead || p.hiding) return; // hiding via /house makes you immune to every monster
+  p.dead = true; // <-- this line was missing, which let every poll tick re-kill + re-message + re-teleport the same player
 
   // Notify clients
   io.to(code).emit('playerDied', { id: pid, cause });
