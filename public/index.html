@@ -11,7 +11,8 @@
   <!-- ============ LOBBY (create/join room) ============ -->
   <div id="lobby">
     <div class="lobby-card">
-      <h1>Crahden</h1>
+      <!-- <h1>Crahden</h1> -->
+       <img id="titleImage" src="./assets/title.png" />
       <p class="lobby-sub">Create a room, or join a friend's with their code</p>
 
       <label class="field-label">Username</label>
@@ -33,7 +34,8 @@
   <!-- ============ GAME (hidden until a room is joined) ============ -->
   <div id="app" class="hidden">
     <div id="app-header">
-      <h1 class="app-title">Crahden</h1>
+      <!-- <h1 class="app-title">Crahden</h1> -->
+      <img id="titleImage" src="./assets/title.png" />
       <button id="room-code-badge" class="pill" title="Tap to copy code"></button>
     </div>
 
@@ -52,7 +54,7 @@
           <button id="btn-right" class="touch-btn">▶</button>
         </div>
 
-        <p id="hint">← → walk · ↑ jump · E interact with trees/lake</p>
+        <p id="hint">← → walk · ↑ jump · E interact with trees/lake · type /house to hide (once bought)</p>
 
         <div id="chatbox">
           <div id="chat-log"></div>

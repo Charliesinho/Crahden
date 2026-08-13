@@ -40,6 +40,8 @@ const CONFIG = {
     fireOff: 'assets/fireOff.gif',
     house: 'assets/house.gif',
     house2: 'assets/house2.gif',
+    platform: 'assets/platform.gif',
+    lava: 'assets/lava.gif',
     dead: 'assets/dead.gif',
   },
 
@@ -50,15 +52,17 @@ const CONFIG = {
   },
 
   SHOP_CATALOG: {
-    fire: { id: 'fire', name: 'Fire', price: 10, currency: 'logs', spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif', x: 200 },
-    house: { id: 'house', name: 'House', price: 10, currency: 'logs', sprite: 'assets/house.gif', x: 320 },
+    fire: { id: 'fire', name: 'Fire', price: 10, currency: 'logs', spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif', x: 200, y: 0, width: 80, height: 80 },
+    house: { id: 'house', name: 'House', price: 10, currency: 'logs', sprite: 'assets/house.gif', x: 320, y: 0, width: 140, height: 140 },
+    platform: { id: 'platform', name: 'Platform', price: 10, currency: 'logs', sprite: 'assets/platform.gif', x: 210, y: 0, width: 100, height: 24 },
   },
 
-  MONSTER_SPRITES: { flodder: 'assets/flodder.gif', fakeflodder: 'assets/fakeflodder.gif' },
+  MONSTER_SPRITES: { flodder: 'assets/flodder.gif', fakeflodder: 'assets/fakeflodder.gif', worren: 'assets/worren.gif' },
   MONSTER_SLIDE_DURATION: 1000,
   MONSTER_STAY_MS: 20000,
 
-  MINIGAME_REWARD_XP: 10,
+  LAVA_STAY_MS: 15000,
+  LAVA_FADE_MS: 800,
 };
 
 function pct(value) { return `${(value / CONFIG.MAP_SIZE) * 100}%`; }
@@ -142,10 +146,12 @@ document.getElementById('room-code-badge').addEventListener('click', () => {
 
 const keys = { ArrowLeft: false, ArrowRight: false, ArrowUp: false };
 let isDead = false;
+let isHiding = false; // true while hidden via /house — immune, invisible, and frozen
+function controlsLocked() { return isDead || isHiding; }
 
 window.addEventListener('keydown', (e) => {
   if (document.activeElement === chatInput) return;
-  if (isDead) return; // block controls while dead
+  if (controlsLocked()) return;
   if (e.key in keys) { keys[e.key] = true; e.preventDefault(); }
   if ((e.key === 'e' || e.key === 'E') && !e.repeat) tryInteract();
 });
@@ -155,7 +161,7 @@ window.addEventListener('keyup', (e) => {
 
 function bindTouchButton(id, key) {
   const btn = document.getElementById(id);
-  const press = (e) => { e.preventDefault(); if (!isDead) keys[key] = true; };
+  const press = (e) => { e.preventDefault(); if (!controlsLocked()) keys[key] = true; };
   const release = (e) => { e.preventDefault(); keys[key] = false; };
   btn.addEventListener('pointerdown', press);
   btn.addEventListener('pointerup', release);
@@ -165,7 +171,7 @@ function bindTouchButton(id, key) {
 bindTouchButton('btn-left', 'ArrowLeft');
 bindTouchButton('btn-right', 'ArrowRight');
 bindTouchButton('btn-jump', 'ArrowUp');
-document.getElementById('btn-interact').addEventListener('pointerdown', (e) => { e.preventDefault(); if (!isDead) tryInteract(); });
+document.getElementById('btn-interact').addEventListener('pointerdown', (e) => { e.preventDefault(); if (!controlsLocked()) tryInteract(); });
 
 document.querySelectorAll('.tab-icon-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -299,7 +305,7 @@ let lastInteract = 0;
 function tryInteract() {
   const now = Date.now();
   if (now - lastInteract < CONFIG.INTERACT_COOLDOWN) return;
-  if (!localEl || isDead) return;
+  if (!localEl || controlsLocked()) return;
 
   const px = localPlayer.x + CONFIG.CHAR_WIDTH / 2;
   const lakeCenterX = CONFIG.LAKE.x + CONFIG.LAKE.width / 2;
@@ -363,6 +369,15 @@ document.querySelectorAll('.emoji-btn').forEach((btn) => {
 
 const inventory = {};
 const ITEM_ICONS = { logs: CONFIG.SPRITES.logs, fish: CONFIG.SPRITES.fish, fish2: CONFIG.SPRITES.fish2, fish3: CONFIG.SPRITES.fish3 };
+
+// Shop items can price themselves in ANY inventory item id (not just logs/fish) —
+// this renders whatever icon that item actually uses, falling back to its name
+// as plain text if it's some future item with no icon registered yet.
+function currencyDisplay(currency) {
+  const icon = ITEM_ICONS[currency] || CONFIG.SPRITES[currency];
+  if (icon) return `<img src="${icon}" style="width:14px;height:14px;vertical-align:-2px;object-fit:contain;">`;
+  return currency;
+}
 
 function addItem(itemId, amount = 1) {
   inventory[itemId] = (inventory[itemId] || 0) + amount;
@@ -437,13 +452,12 @@ function renderShop() {
     const owned = wardrobe.has(id);
     const have = inventory[item.currency] || 0;
     const canAfford = have >= item.price;
-    const currencyIcon = item.currency === 'fish' ? '🐟' : '🪵';
     const card = document.createElement('div');
     card.className = 'shop-item';
     card.innerHTML = `
       <img src="${outfitSprite('idle', id)}" class="shop-item-img" alt="${item.name}">
       <div class="shop-item-name">${item.name}</div>
-      <div class="shop-item-price">${item.price} ${currencyIcon}</div>
+      <div class="shop-item-price">${item.price} ${currencyDisplay(item.currency)}</div>
       <button class="btn btn-sm ${owned || !canAfford ? 'btn-disabled' : 'btn-blue'}" ${owned || !canAfford ? 'disabled' : ''}>
         ${owned ? 'Owned' : 'Buy'}
       </button>
@@ -462,13 +476,12 @@ function renderShop() {
   Object.entries(clientShop).forEach(([id, item]) => {
     const owned = item.bought;
     const total = clientShopTotals[id] || Object.values(item.contributions || {}).reduce((a,b)=>a+(b||0),0);
-    const currencyIcon = item.currency === 'fish' ? '🐟' : '🪵';
     const card = document.createElement('div');
     card.className = 'shop-item';
     card.innerHTML = `
       <img src="${item.sprite || item.spriteOn || CONFIG.SPRITES[id] || CONFIG.SPRITES.house}" class="shop-item-img" alt="${item.name}">
       <div class="shop-item-name">${item.name}</div>
-      <div class="shop-item-price">${item.price} ${currencyIcon}</div>
+      <div class="shop-item-price">${item.price} ${currencyDisplay(item.currency)}</div>
       <div class="shop-progress">Contributed: ${total}/${item.price}</div>
       <div style="display:flex;gap:6px;margin-top:6px;"></div>
     `;
@@ -553,15 +566,17 @@ function renderMapItems() {
     if (!item.bought) return;
     let el = mapItemsEls[id];
     if (!el) {
+      // width/height/x/y all come from the shop's SHOP_CATALOG entry (server.js) —
+      // change those there to move or resize any decoration.
       el = document.createElement('div');
       el.className = 'map-item';
       el.style.position = 'absolute';
-      el.style.width = pct(120);
-      el.style.height = pct(120);
+      el.style.width = pct(item.width || 120);
+      el.style.height = pct(item.height || 120);
       el.style.backgroundSize = 'contain';
       el.style.backgroundRepeat = 'no-repeat';
       el.style.left = pct(item.x || 50);
-      el.style.bottom = pct(CONFIG.GROUND_HEIGHT);
+      el.style.bottom = pct(CONFIG.GROUND_HEIGHT + (item.y || 0));
       el.style.zIndex = 1;
       el.style.pointerEvents = 'auto';
       el.dataset.itemId = id;
@@ -579,138 +594,52 @@ function renderMapItems() {
   });
 }
 
-let activeMinigame = null;
+// ============================================================
+// Lava floor — random every 5-20 min. Same size as the map, appears with a
+// fade, stays a while, fades out. Anyone not standing on a bought "platform"
+// (or hiding via /house) dies once the grace period passes.
+// ============================================================
+function showLava(duration) {
+  const existing = document.getElementById('lava-overlay');
+  if (existing) existing.remove();
 
-socket.on('minigameStarted', ({ type, state }) => { activeMinigame = { type, state }; showMinigameUI(type, state); });
-socket.on('minigameEnded', ({ winnerId, type }) => { hideMinigameUI(); appendChatLog('System', winnerId === myId ? `You won the ${type} minigame and earned research XP!` : `Player ${winnerId} won the ${type} minigame.`); activeMinigame = null; });
-socket.on('grantResearchXp', ({ id, xp }) => { if (id === myId) addXp('research', xp || CONFIG.MINIGAME_REWARD_XP); });
+  const el = document.createElement('div');
+  el.id = 'lava-overlay';
+  el.style.position = 'absolute';
+  el.style.left = '0';
+  el.style.top = '0';
+  el.style.width = '100%';
+  el.style.height = '100%';
+  el.style.backgroundImage = `url(${CONFIG.SPRITES.lava})`;
+  el.style.backgroundSize = 'cover';
+  el.style.backgroundPosition = 'center';
+  el.style.pointerEvents = 'none';
+  el.style.zIndex = 0; // behind players/objects, same layer as the monster overlay
+  el.style.opacity = '0';
+  el.style.transition = `opacity ${CONFIG.LAVA_FADE_MS}ms ease-in-out`;
+  mapEl.appendChild(el);
 
-// Wrong guess/attempt — let the active minigame's UI reset itself instead of
-// just sitting there with no feedback.
-socket.on('minigameFail', () => {
-  document.getElementById('minigame-overlay')?._onFail?.();
+  void el.offsetWidth; // force reflow so the fade-in reliably animates
+  requestAnimationFrame(() => { el.style.opacity = '1'; });
+
+  const stay = duration || CONFIG.LAVA_STAY_MS;
+  setTimeout(() => {
+    el.style.opacity = '0';
+    setTimeout(() => { const e = document.getElementById('lava-overlay'); if (e) e.remove(); }, CONFIG.LAVA_FADE_MS);
+  }, stay);
+}
+
+socket.on('lavaSpawn', ({ duration }) => {
+  showLava(duration || CONFIG.LAVA_STAY_MS);
+  // "The floor is turning to lava!" arrives as its own system chat message
+  // from the server, so nothing else needed here.
 });
-
-function showMinigameUI(type, state) {
-  const overlay = document.createElement('div');
-  overlay.id = 'minigame-overlay';
-  overlay.style.position = 'absolute';
-  overlay.style.left = '0';
-  overlay.style.top = '0';
-  overlay.style.width = '100%';
-  overlay.style.height = '100%';
-  overlay.style.zIndex = 60;
-  overlay.style.display = 'flex';
-  overlay.style.alignItems = 'center';
-  overlay.style.justifyContent = 'center';
-  overlay.style.background = 'rgba(0,0,0,0.6)';
-  overlay.style.color = '#fff';
-  overlay.style.flexDirection = 'column';
-  overlay.style.gap = '12px';
-  overlay.style.fontFamily = 'VT323, monospace';
-  overlay.style.fontSize = '20px';
-
-  if (type === 'guessWord') {
-    const prompt = document.createElement('div'); prompt.textContent = 'Guess the word!';
-    const maskedEl = document.createElement('div');
-    maskedEl.textContent = state.masked || '_'.repeat(state.length || 5);
-    maskedEl.style.fontSize = '28px';
-    maskedEl.style.letterSpacing = '6px';
-    const input = document.createElement('input'); input.className = 'text-input'; input.placeholder = 'Type your guess and press Enter'; input.style.width = '300px';
-    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const attempt = input.value.trim(); if (!attempt) return; socket.emit('minigameSubmit', { attempt }); } });
-    overlay.appendChild(prompt); overlay.appendChild(maskedEl); overlay.appendChild(input);
-    setTimeout(() => input.focus(), 50);
-    overlay._onFail = () => {
-      input.value = '';
-      input.focus();
-      maskedEl.style.color = '#e06060';
-      setTimeout(() => { maskedEl.style.color = ''; }, 400);
-    };
-  } else if (type === 'rhythm') {
-    // Watch the pattern play out, then repeat it by tapping the two buttons
-    // (or ←/→) in the same order.
-    const seq = state.sequence || [];
-    const title = document.createElement('div'); title.textContent = 'Watch the pattern…';
-    const beatsRow = document.createElement('div');
-    beatsRow.style.display = 'flex';
-    beatsRow.style.gap = '10px';
-
-    const dots = seq.map(() => {
-      const d = document.createElement('div');
-      d.style.width = '22px';
-      d.style.height = '22px';
-      d.style.borderRadius = '50%';
-      d.style.background = '#444';
-      d.style.transition = 'background 0.15s, transform 0.15s';
-      beatsRow.appendChild(d);
-      return d;
-    });
-
-    const inputRow = document.createElement('div');
-    inputRow.style.display = 'none';
-    inputRow.style.gap = '16px';
-    const leftBtn = document.createElement('button'); leftBtn.className = 'btn btn-blue'; leftBtn.textContent = '◀';
-    const rightBtn = document.createElement('button'); rightBtn.className = 'btn btn-blue'; rightBtn.textContent = '▶';
-    inputRow.appendChild(leftBtn); inputRow.appendChild(rightBtn);
-
-    overlay.appendChild(title);
-    overlay.appendChild(beatsRow);
-    overlay.appendChild(inputRow);
-
-    const attempt = [];
-    const flashDot = (i) => {
-      dots[i].style.background = seq[i] === 0 ? '#4fa8d8' : '#e06060';
-      dots[i].style.transform = 'scale(1.3)';
-      setTimeout(() => { dots[i].style.transform = 'scale(1)'; }, 220);
-    };
-    const submitTap = (val) => {
-      if (attempt.length >= seq.length) return;
-      const i = attempt.length;
-      attempt.push(val);
-      dots[i].style.background = val === seq[i] ? '#7cb342' : '#e06060';
-      if (attempt.length === seq.length) {
-        setTimeout(() => socket.emit('minigameSubmit', { attempt }), 200);
-      }
-    };
-    leftBtn.addEventListener('click', () => submitTap(0));
-    rightBtn.addEventListener('click', () => submitTap(1));
-    const keyHandler = (e) => {
-      if (inputRow.style.display === 'none') return;
-      if (e.key === 'ArrowLeft') submitTap(0);
-      if (e.key === 'ArrowRight') submitTap(1);
-    };
-    document.addEventListener('keydown', keyHandler);
-    overlay._cleanup = () => document.removeEventListener('keydown', keyHandler);
-    overlay._onFail = () => {
-      attempt.length = 0;
-      dots.forEach((d) => { d.style.background = '#333'; });
-      title.textContent = 'Not quite — try again (tap or ←/→)';
-    };
-
-    const BEAT_MS = 500;
-    seq.forEach((_, i) => setTimeout(() => flashDot(i), i * BEAT_MS));
-    setTimeout(() => {
-      title.textContent = 'Your turn! Repeat it (tap or ←/→)';
-      dots.forEach((d) => { d.style.background = '#333'; });
-      inputRow.style.display = 'flex';
-    }, seq.length * BEAT_MS + 400);
-  }
-
-  const cancel = document.createElement('button'); cancel.className = 'btn btn-sm btn-red'; cancel.textContent = 'Close'; cancel.addEventListener('click', hideMinigameUI);
-  overlay.appendChild(cancel);
-  document.body.appendChild(overlay);
-}
-
-function hideMinigameUI() {
-  const el = document.getElementById('minigame-overlay');
-  if (el) { el._cleanup?.(); el.remove(); }
-}
 
 let movedThisFrame = false;
 let isJumping = false;
 
 function loop() {
-  if (!isDead) {
+  if (!controlsLocked()) {
     let moving = false;
     if (keys.ArrowLeft) { localPlayer.x -= CONFIG.MOVE_SPEED; localPlayer.facing = 'left'; moving = true; movedThisFrame = true; }
     if (keys.ArrowRight) { localPlayer.x += CONFIG.MOVE_SPEED; localPlayer.facing = 'right'; moving = true; movedThisFrame = true; }
@@ -722,19 +651,22 @@ function loop() {
     localPlayer.state = !localPlayer.onGround ? 'jump' : (moving ? 'walk' : 'idle');
     isJumping = !localPlayer.onGround;
   } else {
-    // while dead, freeze vertical/horizontal movement visually
+    // while dead or hiding, freeze vertical/horizontal movement
     localPlayer.vy = 0;
     localPlayer.y = 0;
     localPlayer.state = 'idle';
   }
 
   if (localEl) {
-    // localEl sprite will be updated by updatePlayerEl when server sends updates,
-    // but keep local visual consistent while dead
-    if (isDead) {
+    if (isHiding) {
+      localEl.style.display = 'none'; // invisible while hidden in the house
+    } else if (isDead) {
+      localEl.style.display = '';
       localEl.style.backgroundImage = `url(${CONFIG.SPRITES.dead})`;
       localEl.classList.add('dead');
     } else {
+      localEl.style.display = '';
+      localEl.classList.remove('dead');
       updatePlayerEl(localEl, localPlayer);
     }
   }
@@ -805,12 +737,32 @@ function showMonster(type, duration) {
   }, stay);
 }
 
+// Note: the "X appears!" announcement is sent as its own system chat message
+// by the server (sysMsg in spawnMonster) — appending another one here would
+// just duplicate it, so this handler only drives the visual/local-state side.
 socket.on('monsterSpawn', ({ type, duration }) => {
   if (!CONFIG.MONSTER_SPRITES[type]) CONFIG.MONSTER_SPRITES[type] = `assets/${type}.gif`;
   showMonster(type, duration || CONFIG.MONSTER_STAY_MS);
-  appendChatLog('System', type === 'flodder' ? 'A flooder sweeps across the land!' : 'A strange fake flooder appears!');
   monsterActive = { type, endsAt: Date.now() + (duration || CONFIG.MONSTER_STAY_MS), startedAt: Date.now() };
   setTimeout(() => { monsterActive = null; }, duration || CONFIG.MONSTER_STAY_MS);
+});
+
+// /house — hidden players are invisible and immune everywhere else in the
+// game (see controlsLocked()); this just drives the visibility toggle.
+socket.on('playerHiding', ({ id, hiding, player }) => {
+  if (id === myId) {
+    isHiding = hiding;
+    if (localEl) localEl.style.display = hiding ? 'none' : '';
+    if (!hiding && player) {
+      localPlayer.x = player.x; localPlayer.y = player.y; localPlayer.vy = 0; localPlayer.onGround = true;
+      updatePlayerEl(localEl, localPlayer);
+    }
+  } else {
+    const el = remoteEls[id];
+    if (!el) return;
+    el.style.display = hiding ? 'none' : '';
+    if (!hiding && player) updatePlayerEl(el, player);
+  }
 });
 
 // When a player dies: show dead sprite and lock local controls until respawn
@@ -870,12 +822,14 @@ socket.on('fireToggled', ({ fireOn }) => {
   appendChatLog('System', `Fire is now ${clientFireOn ? 'ON' : 'OFF'}.`);
 });
 
-// Test keys
+// Test keys (debug only — guarded so typing "k"/"l" in chat doesn't trigger these)
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'm' || e.key === 'M') socket.emit('startMinigame', { type: 'guessWord' });
-  else if (e.key === 'n' || e.key === 'N') socket.emit('startMinigame', { type: 'rhythm' });
-  else if (e.key === 'k' || e.key === 'K') {
+  if (document.activeElement === chatInput) return;
+  if (e.key === 'k' || e.key === 'K') {
     socket.emit('spawnMonsterNow');
     appendChatLog('System', 'Requested immediate monster spawn (test).');
+  } else if (e.key === 'l' || e.key === 'L') {
+    socket.emit('spawnLavaNow');
+    appendChatLog('System', 'Requested immediate lava spawn (test).');
   }
 });
