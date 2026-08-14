@@ -42,6 +42,7 @@ const CONFIG = {
     fish: 'assets/fish.png',
     fish2: 'assets/fish2.png',
     fish3: 'assets/fish3.png',
+    fish4: 'assets/fish4.png',
     logs: 'assets/logs.png',
     fireOn: 'assets/fireOn.gif',
     fireOff: 'assets/fireOff.gif',
@@ -58,9 +59,10 @@ const CONFIG = {
     knight: { name: 'Knight', price: 50, currency: 'logs' },
     goblin: { name: 'Goblin', price: 500, currency: 'fish' },
     demon: { name: 'Demon', price: 500, currency: 'fish2' },
-    hazmat: { name: 'Hazmat', price: 10, currency: 'fish2' },
-    mantis: { name: 'Mantis', price: 50, currency: 'fish' },
-    pinker: { name: 'Pinker', price: 10, currency: 'fish2' },
+    hazmat: { name: 'Hazmat', price: 200, currency: 'logs' },
+    mantis: { name: 'Mantis', price: 5, currency: 'hay' },
+    pinker: { name: 'Pinker', price: 300, currency: 'fish2' },
+    phantom: { name: 'Phantom', price: 100, currency: 'fish4' },
   },
 
   SHOP_CATALOG: {
@@ -363,8 +365,9 @@ function tryInteract() {
     const lvl = skills.fishing.level || 1;
     const tiers = [
       { level: 1, id: 'fish', weight: 1.0 },
-      { level: 10, id: 'fish2', weight: 0.25 },
-      { level: 20, id: 'fish3', weight: 0.15 },
+      { level: 20, id: 'fish2', weight: 0.25 },
+      { level: 50, id: 'fish3', weight: 0.15 },
+      { level: 100, id: 'fish4', weight: 0.15 },
     ];
     const available = tiers.filter(t => lvl >= t.level);
     const weights = available.map(t => t.weight);
