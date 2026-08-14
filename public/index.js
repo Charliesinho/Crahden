@@ -63,6 +63,7 @@ const CONFIG = {
     mantis: { name: 'Mantis', price: 5, currency: 'hay' },
     pinker: { name: 'Pinker', price: 300, currency: 'fish2' },
     phantom: { name: 'Phantom', price: 100, currency: 'fish4' },
+    aqua: { name: 'Aqua', price: 1, currency: 'logs' },
   },
 
   SHOP_CATALOG: {
