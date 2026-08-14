@@ -67,38 +67,38 @@ const CONFIG = {
 
   SHOP_CATALOG: {
     fire: {
-      id: 'fire', name: 'Fire', price: 10, currency: 'logs',
+      id: 'fire', name: 'Fire', price: 100, currency: 'logs',
       x: 195, y: 0.2, width: 110, height: 110,
       spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif',
       bought: false, contributions: {},
     },
     house: {
-      id: 'house', name: 'House', price: 10, currency: 'logs',
+      id: 'house', name: 'House', price: 500, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/house.gif',
       next: { id: 'house2', priceMultiplier: 2, sprite: 'assets/house2.gif' },
       bought: false, contributions: {},
     },
     lamp: {
-      id: 'lamp', name: 'Lamp', price: 10, currency: 'logs',
+      id: 'lamp', name: 'Lamp', price: 100, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/lamp.gif',
       bought: false, contributions: {},
     },
-    wall: {
-      id: 'wall', name: 'Wall', price: 10, currency: 'logs',
-      x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
-      sprite: 'assets/wall.gif',
-      bought: false, contributions: {},
-    },
+    // wall: {
+    //   id: 'wall', name: 'Wall', price: 10, currency: 'logs',
+    //   x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
+    //   sprite: 'assets/wall.gif',
+    //   bought: false, contributions: {},
+    // },
     farm: {
-      id: 'farm', name: 'Farm', price: 10, currency: 'logs',
+      id: 'farm', name: 'Farm', price: 500, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/farm.gif',
       bought: false, contributions: {},
     },
     platform: {
-      id: 'platform', name: 'Platform', price: 10, currency: 'logs',
+      id: 'platform', name: 'Platform', price: 100, currency: 'logs',
       x: 150, y: 7.2, width: 75, height: 75, // matches: left 30%, bottom 18.8%, width/height 15% of the map
       surfaceOffset: -15, // nudge the walkable top surface up(+)/down(-) if it doesn't line up with the sprite's art
       sprite: 'assets/platform.gif',
