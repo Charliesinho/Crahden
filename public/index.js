@@ -23,6 +23,13 @@ const CONFIG = {
   XP_PER_LEVEL: 20,
   INVENTORY_SLOTS: 8,
 
+  // Farming — all client-side, per the request: a seed is a rare woodcutting
+  // drop once you're high enough level, and the farm (once bought) turns one
+  // seed into hay after a wait. None of this touches the server.
+  SEED_DROP_LEVEL: 50,   // minimum woodcutting level before trees can drop seeds
+  SEED_DROP_CHANCE: 0.01, // 1%
+  FARM_GROW_MS: 60 * 1000, // 1 minute
+
   CHAT_BUBBLE_DURATION: 3500,
 
   SPRITES: {
@@ -43,12 +50,17 @@ const CONFIG = {
     platform: 'assets/platform.gif',
     lava: 'assets/lava.gif',
     dead: 'assets/dead.gif',
+    seed: 'assets/seed.png',
+    hay: 'assets/hay.png',
   },
 
   OUTFITS: {
     knight: { name: 'Knight', price: 50, currency: 'logs' },
     goblin: { name: 'Goblin', price: 500, currency: 'fish' },
     demon: { name: 'Demon', price: 500, currency: 'fish2' },
+    hazmat: { name: 'Hazmat', price: 10, currency: 'fish2' },
+    mantis: { name: 'Mantis', price: 50, currency: 'fish' },
+    pinker: { name: 'Pinker', price: 10, currency: 'fish2' },
   },
 
   SHOP_CATALOG: {
@@ -65,7 +77,32 @@ const CONFIG = {
       next: { id: 'house2', priceMultiplier: 2, sprite: 'assets/house2.gif' },
       bought: false, contributions: {},
     },
-    platform: { id: 'platform', name: 'Platform', price: 10, currency: 'logs', sprite: 'assets/platform.gif', x: 150, y: 7.2, width: 75, height: 75, surfaceOffset: -15 },
+    lamp: {
+      id: 'lamp', name: 'Lamp', price: 10, currency: 'logs',
+      x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
+      sprite: 'assets/lamp.gif',
+      bought: false, contributions: {},
+    },
+    wall: {
+      id: 'wall', name: 'Wall', price: 10, currency: 'logs',
+      x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
+      sprite: 'assets/wall.gif',
+      bought: false, contributions: {},
+    },
+    farm: {
+      id: 'farm', name: 'Farm', price: 10, currency: 'logs',
+      x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
+      sprite: 'assets/farm.gif',
+      bought: false, contributions: {},
+    },
+    platform: {
+      id: 'platform', name: 'Platform', price: 10, currency: 'logs',
+      x: 150, y: 7.2, width: 75, height: 75, // matches: left 30%, bottom 18.8%, width/height 15% of the map
+      surfaceOffset: -15, // nudge the walkable top surface up(+)/down(-) if it doesn't line up with the sprite's art
+      sprite: 'assets/platform.gif',
+      isPlatform: true, // marks this (and any future item like it) as safe ground during a lava event AND solid-on-top for landing
+      bought: false, contributions: {},
+    },
   },
 
   MONSTER_SPRITES: { flodder: 'assets/flodder.gif', fakeflodder: 'assets/fakeflodder.gif', worren: 'assets/worren.gif' },
@@ -312,6 +349,7 @@ function createLake() {
 createLake();
 
 let lastInteract = 0;
+let farmGrowing = null; // { until: <timestamp> } while a planted seed is growing — client-side only
 
 function tryInteract() {
   const now = Date.now();
@@ -351,9 +389,48 @@ function tryInteract() {
       addItem('logs', 1);
       addXp('woodcutting', CONFIG.XP_PER_ACTION);
       showFloatingIcon(localEl, CONFIG.SPRITES.logs, '');
+
+      // Rare bonus drop, once woodcutting is high enough — doesn't replace the log.
+      const wcLevel = skills.woodcutting.level || 1;
+      if (wcLevel >= CONFIG.SEED_DROP_LEVEL && Math.random() < CONFIG.SEED_DROP_CHANCE) {
+        addItem('seed', 1);
+        showFloatingIcon(localEl, CONFIG.SPRITES.seed, 'Seed!');
+      }
+
       socket.emit('chopTree', { treeId: t.id });
       return;
     }
+  }
+
+  // Farm — entirely client-side (per request): plant a seed, wait a minute, get hay.
+  // The farm's footprint currently covers the whole map (same as house/wall/lamp),
+  // so this triggers on any E press once it's bought, rather than needing proximity.
+  if (clientShop.farm && clientShop.farm.bought) {
+    lastInteract = now;
+
+    if (farmGrowing) {
+      const remaining = Math.max(0, Math.ceil((farmGrowing.until - now) / 1000));
+      appendChatLog('System', remaining > 0 ? `The farm is still growing (${remaining}s left).` : 'The farm should be ready any moment.');
+      return;
+    }
+
+    if ((inventory.seed || 0) <= 0) {
+      appendChatLog('System', 'You need a seed to plant here (rare woodcutting drop past level 50).');
+      return;
+    }
+
+    inventory.seed -= 1;
+    renderInventory();
+    showFloatingIcon(localEl, CONFIG.SPRITES.seed, 'Planted');
+    appendChatLog('System', 'You planted a seed. Check back in a minute.');
+
+    farmGrowing = { until: now + CONFIG.FARM_GROW_MS };
+    setTimeout(() => {
+      farmGrowing = null;
+      addItem('hay', 1);
+      if (localEl) showFloatingIcon(localEl, CONFIG.SPRITES.hay, '+1');
+      appendChatLog('System', 'Your farm produced hay!');
+    }, CONFIG.FARM_GROW_MS);
   }
 }
 
@@ -507,7 +584,7 @@ function renderShop() {
       btn100.textContent = 'Contribute 100';
       btn100.addEventListener('click', () => tryContribute(id, 100));
       btnContainer.appendChild(btn10);
-      btnContainer.appendChild(btn100);
+      // btnContainer.appendChild(btn100);
     } else {
       if (id === 'fire') {
         const toggleBtn = document.createElement('button');
@@ -625,7 +702,7 @@ function showLava(duration) {
   el.style.backgroundSize = 'cover';
   el.style.backgroundPosition = 'center';
   el.style.pointerEvents = 'none';
-  el.style.zIndex = 0; // behind players/objects, same layer as the monster overlay
+  el.style.zIndex = 10; // above players/nametags/chat bubbles/everything — lava covers the whole scene
   el.style.opacity = '0';
   el.style.transition = `opacity ${CONFIG.LAVA_FADE_MS}ms ease-in-out`;
   mapEl.appendChild(el);

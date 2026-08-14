@@ -97,6 +97,24 @@ const SHOP_CATALOG = {
     next: { id: 'house2', priceMultiplier: 2, sprite: 'assets/house2.gif' },
     bought: false, contributions: {},
   },
+  lamp: {
+    id: 'lamp', name: 'Lamp', price: 10, currency: 'logs',
+    x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
+    sprite: 'assets/lamp.gif',
+    bought: false, contributions: {},
+  },
+  wall: {
+    id: 'wall', name: 'Wall', price: 10, currency: 'logs',
+    x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
+    sprite: 'assets/wall.gif',
+    bought: false, contributions: {},
+  },
+  farm: {
+    id: 'farm', name: 'Farm', price: 10, currency: 'logs',
+    x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
+    sprite: 'assets/farm.gif',
+    bought: false, contributions: {},
+  },
   platform: {
     id: 'platform', name: 'Platform', price: 10, currency: 'logs',
     x: 150, y: 7.2, width: 75, height: 75, // matches: left 30%, bottom 18.8%, width/height 15% of the map
@@ -522,7 +540,7 @@ io.on('connection', (socket) => {
     if (total >= item.price && !item.bought) {
       item.bought = true;
       if (itemId === 'fire') room.fireOn = true;
-      if (item.next) {
+      if (item.next && item.next.id && item.next.id !== itemId) {
         const n = item.next;
         const next = {
           id: n.id,
