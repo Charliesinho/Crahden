@@ -65,7 +65,7 @@ const CONFIG = {
     phantom: { name: 'Phantom', price: 100, currency: 'fish4' },
     // Real-money skin — no price/currency (that lives on the server, tied to
     // the actual Stripe Price), just premium:true + what to show for it.
-    aqua: { name: 'Aqua', premium: true, priceEUR: 3.00 },
+    aqua: { name: 'Aqua', premium: true, priceEUR: 4.50 },
   },
 
   SHOP_CATALOG: {

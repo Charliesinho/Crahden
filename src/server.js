@@ -153,7 +153,7 @@ const PREMIUM_SKINS = {
   aqua: {
     id: 'aqua',
     name: 'Aqua',
-    priceEUR: 3.00,
+    priceEUR: 4.50,
     creatorCutEUR: 1.00,
     stripePriceId: process.env.STRIPE_PRICE_AQUA_SKIN,
     creatorStripeAccountId: process.env.AQUA_CREATOR_STRIPE_ACCOUNT_ID,
