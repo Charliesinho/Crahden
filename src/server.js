@@ -43,6 +43,10 @@ const userSchema = new mongoose.Schema({
   usernameLower: { type: String, required: true, unique: true },
   passwordHash: { type: String, required: true },
   ownedSkins: { type: [String], default: [] }, // ids from PREMIUM_SKINS the user has paid for
+  // Self-serve creator payouts (Stripe Connect Express). A user becomes a
+  // "creator" just by starting onboarding — no separate signup/role needed.
+  stripeAccountId: { type: String, default: null },
+  stripeOnboardingComplete: { type: Boolean, default: false }, // true once Stripe confirms charges_enabled && payouts_enabled
   createdAt: { type: Date, default: Date.now },
 });
 const User = mongoose.model('User', userSchema);
@@ -143,8 +147,10 @@ app.post('/api/logout', (req, res) => {
 // ------------------------------------------------------------
 // Premium skins — real-money purchases via Stripe Connect. To add a new
 // one: give it an id below, create a matching Product/Price in the Stripe
-// Dashboard, and drop its Price id + the creator's connected account id in
-// .env (see the two vars aqua uses). priceEUR/creatorCutEUR are just for
+// Dashboard, put its Price id in .env, and set creatorUsername to the game
+// account of whoever should get the cut — they onboard themselves via
+// /api/creator/onboard (see further down), no manual Stripe account
+// creation on your end anymore. priceEUR/creatorCutEUR are just for
 // display — the ACTUAL charge/split amounts come from Stripe (the Price
 // object for the charge, application_fee_amount for the split), so those
 // two numbers must be kept in sync with what you set up in Stripe.
@@ -153,12 +159,21 @@ const PREMIUM_SKINS = {
   aqua: {
     id: 'aqua',
     name: 'Aqua',
-    priceEUR: 4.50,
+    priceEUR: 2.00,
     creatorCutEUR: 1.00,
     stripePriceId: process.env.STRIPE_PRICE_AQUA_SKIN,
-    creatorStripeAccountId: process.env.AQUA_CREATOR_STRIPE_ACCOUNT_ID,
+    creatorUsername: process.env.AQUA_CREATOR_USERNAME, // their game username, not a raw Stripe id
   },
 };
+
+// Looks up the creator's Stripe account for a skin — returns null if they
+// haven't been assigned, haven't onboarded yet, or onboarding isn't done.
+async function resolveCreatorAccount(skin) {
+  if (!skin.creatorUsername) return null;
+  const creator = await User.findOne({ usernameLower: skin.creatorUsername.toLowerCase() });
+  if (!creator || !creator.stripeOnboardingComplete || !creator.stripeAccountId) return null;
+  return creator.stripeAccountId;
+}
 
 app.get('/api/premium/owned', async (req, res) => {
   const username = usernameFromReq(req);
@@ -176,8 +191,13 @@ app.post('/api/premium/checkout', async (req, res) => {
 
     const skin = PREMIUM_SKINS[req.body.skinId];
     if (!skin) return res.status(404).json({ error: 'Unknown skin.' });
-    if (!skin.stripePriceId || !skin.creatorStripeAccountId) {
-      return res.status(500).json({ error: `${skin.name} isn't fully set up yet (missing Stripe price or creator account).` });
+    if (!skin.stripePriceId) {
+      return res.status(500).json({ error: `${skin.name} isn't fully set up yet (missing Stripe price).` });
+    }
+
+    const creatorAccountId = await resolveCreatorAccount(skin);
+    if (!creatorAccountId) {
+      return res.status(500).json({ error: `${skin.name}'s creator hasn't finished onboarding yet — check back later.` });
     }
 
     const user = await User.findOne({ usernameLower: username.toLowerCase() });
@@ -193,7 +213,7 @@ app.post('/api/premium/checkout', async (req, res) => {
       line_items: [{ price: skin.stripePriceId, quantity: 1 }],
       payment_intent_data: {
         application_fee_amount: creatorCutCents, // this slice goes to the creator, the rest stays with you
-        transfer_data: { destination: skin.creatorStripeAccountId },
+        transfer_data: { destination: creatorAccountId },
       },
       metadata: { username, skinId: skin.id },
       success_url: `${baseUrl}/?purchase=success`,
@@ -205,6 +225,87 @@ app.post('/api/premium/checkout', async (req, res) => {
     console.error('checkout error:', err);
     res.status(500).json({ error: 'Could not start checkout. Try again.' });
   }
+});
+
+// ------------------------------------------------------------
+// Creator self-onboarding (Stripe Connect Express). Any logged-in game
+// account can become a creator this way — you still separately decide who
+// gets paid for what by setting creatorUsername on a skin in PREMIUM_SKINS,
+// this just removes the need for you to manually create their Stripe
+// account and hand them a link.
+// ------------------------------------------------------------
+app.post('/api/creator/onboard', async (req, res) => {
+  try {
+    if (!stripe) return res.status(500).json({ error: 'Payments are not configured on this server.' });
+
+    const username = usernameFromReq(req);
+    if (!username) return res.status(401).json({ error: 'Not logged in.' });
+
+    const user = await User.findOne({ usernameLower: username.toLowerCase() });
+    if (!user) return res.status(404).json({ error: 'Account not found.' });
+
+    let accountId = user.stripeAccountId;
+    if (!accountId) {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        capabilities: {
+          card_payments: { requested: true },
+          transfers: { requested: true }, // this is the one that actually matters for receiving a skin's cut
+        },
+      });
+      accountId = account.id;
+      user.stripeAccountId = accountId;
+      await user.save();
+    }
+
+    const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${baseUrl}/api/creator/onboard-refresh?token=${encodeURIComponent(req.body.token || '')}`,
+      return_url: `${baseUrl}/?onboarding=return`,
+      type: 'account_onboarding',
+    });
+
+    res.json({ url: accountLink.url });
+  } catch (err) {
+    console.error('creator onboard error:', err);
+    res.status(500).json({ error: 'Could not start onboarding. Try again.' });
+  }
+});
+
+// Stripe redirects here (a plain browser navigation, not a fetch call) if an
+// onboarding link expired or something went wrong mid-flow — regenerate a
+// fresh link and bounce the creator straight back into it.
+app.get('/api/creator/onboard-refresh', async (req, res) => {
+  try {
+    const username = sessions.get(String(req.query.token || ''));
+    if (!username || !stripe) return res.redirect('/');
+
+    const user = await User.findOne({ usernameLower: username.toLowerCase() });
+    if (!user || !user.stripeAccountId) return res.redirect('/');
+
+    const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const accountLink = await stripe.accountLinks.create({
+      account: user.stripeAccountId,
+      refresh_url: `${baseUrl}/api/creator/onboard-refresh?token=${encodeURIComponent(req.query.token)}`,
+      return_url: `${baseUrl}/?onboarding=return`,
+      type: 'account_onboarding',
+    });
+    res.redirect(accountLink.url);
+  } catch (err) {
+    console.error('onboard-refresh error:', err);
+    res.redirect('/');
+  }
+});
+
+app.get('/api/creator/status', async (req, res) => {
+  const username = usernameFromReq(req);
+  if (!username) return res.status(401).json({ error: 'Not logged in.' });
+  const user = await User.findOne({ usernameLower: username.toLowerCase() });
+  res.json({
+    isCreator: !!(user && user.stripeAccountId),
+    onboardingComplete: !!(user && user.stripeOnboardingComplete),
+  });
 });
 
 // Called by app.post('/api/stripe/webhook', ...) registered up near the top
@@ -233,19 +334,37 @@ async function handleStripeWebhook(req, res) {
           { usernameLower: username.toLowerCase() },
           { $addToSet: { ownedSkins: skin.id } } // $addToSet: safe even if Stripe ever retries this webhook
         );
+        const creatorAccountId = await resolveCreatorAccount(skin);
         await Purchase.create({
           username,
           skinId: skin.id,
           stripeSessionId: session.id,
           amountCents: session.amount_total,
           creatorCutCents: Math.round(skin.creatorCutEUR * 100),
-          creatorStripeAccountId: skin.creatorStripeAccountId,
+          creatorStripeAccountId: creatorAccountId,
         });
         console.log(`${username} unlocked premium skin "${skin.id}"`);
       } catch (err) {
         // duplicate stripeSessionId (Stripe retried a webhook we already handled) — not an error
         if (err.code !== 11000) console.error('Error recording purchase:', err);
       }
+    }
+  }
+
+  // Fired whenever a connected account's status changes — this is how we
+  // find out a creator has actually finished onboarding (Stripe reviews
+  // their submitted info asynchronously, so "finished the form" and
+  // "cleared to receive payouts" aren't the same moment).
+  if (event.type === 'account.updated') {
+    const account = event.data.object;
+    const ready = !!(account.charges_enabled && account.payouts_enabled);
+    try {
+      await User.updateOne(
+        { stripeAccountId: account.id },
+        { $set: { stripeOnboardingComplete: ready } }
+      );
+    } catch (err) {
+      console.error('Error updating creator onboarding status:', err);
     }
   }
 

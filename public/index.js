@@ -65,7 +65,7 @@ const CONFIG = {
     phantom: { name: 'Phantom', price: 100, currency: 'fish4' },
     // Real-money skin — no price/currency (that lives on the server, tied to
     // the actual Stripe Price), just premium:true + what to show for it.
-    aqua: { name: 'Aqua', premium: true, priceEUR: 4.50 },
+    aqua: { name: 'Aqua', premium: true, priceEUR: 2.00 },
   },
 
   SHOP_CATALOG: {
@@ -172,6 +172,7 @@ function enterLobbyAs(username) {
   authScreenEl.classList.add('hidden');
   lobbyEl.classList.remove('hidden');
   refreshPremiumOwnership();
+  refreshCreatorLinkText();
 }
 
 async function submitAuth(endpoint) {
@@ -216,6 +217,46 @@ document.getElementById('logout-link').addEventListener('click', () => {
   authPasswordInput.value = '';
 });
 
+// ------------------------------------------------------------
+// Creator self-onboarding — any logged-in account can start this; you still
+// separately decide which skin pays which creator via PREMIUM_SKINS on the
+// server, this link just gets someone through Stripe's own onboarding form
+// without you doing anything by hand.
+// ------------------------------------------------------------
+const creatorLink = document.getElementById('creator-link');
+
+async function refreshCreatorLinkText() {
+  const token = localStorage.getItem('crahdenAuthToken');
+  if (!token) return;
+  try {
+    const res = await fetch('/api/creator/status', { headers: { 'x-auth-token': token } });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.onboardingComplete) creatorLink.textContent = '✅ Creator account connected';
+    else if (data.isCreator) creatorLink.textContent = '⏳ Continue creator onboarding';
+    else creatorLink.textContent = '🎨 Become a creator';
+  } catch (err) {
+    // offline/hiccup — link just keeps its last known label
+  }
+}
+
+creatorLink.addEventListener('click', async () => {
+  const token = localStorage.getItem('crahdenAuthToken');
+  if (!token) return;
+  try {
+    const res = await fetch('/api/creator/onboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const data = await res.json();
+    if (!res.ok) { lobbyError.textContent = data.error || 'Could not start onboarding.'; return; }
+    window.location.href = data.url; // off to Stripe's hosted onboarding form
+  } catch (err) {
+    lobbyError.textContent = 'Could not reach the server.';
+  }
+});
+
 // Try to silently restore a session on page load; fall back to the auth screen.
 (async () => {
   const token = localStorage.getItem('crahdenAuthToken');
@@ -240,13 +281,19 @@ document.getElementById('logout-link').addEventListener('click', () => {
 (() => {
   const params = new URLSearchParams(window.location.search);
   const purchase = params.get('purchase');
-  if (!purchase) return;
+  const onboarding = params.get('onboarding');
+  if (!purchase && !onboarding) return;
   // At this point we're back on the room lobby screen (not inside a room yet),
   // so the in-game chat log isn't visible — use the lobby's own message line.
   if (purchase === 'success') {
     setTimeout(() => { lobbyError.style.color = 'var(--accent-green, #7cb342)'; lobbyError.textContent = 'Thanks for your purchase! Check the shop for your new skin.'; }, 300);
   } else if (purchase === 'cancelled') {
     lobbyError.textContent = 'Checkout cancelled — no charge was made.';
+  } else if (onboarding === 'return') {
+    // Stripe reviews submitted info asynchronously, so this doesn't
+    // necessarily mean onboarding is fully approved yet — refreshCreatorLinkText()
+    // (called from enterLobbyAs above) will reflect the real status once it lands.
+    setTimeout(() => { lobbyError.style.color = 'var(--accent-green, #7cb342)'; lobbyError.textContent = 'Stripe onboarding submitted — this can take a moment to finish processing.'; }, 300);
   }
   window.history.replaceState({}, '', window.location.pathname);
 })();
