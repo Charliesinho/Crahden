@@ -3,16 +3,254 @@
 // Updated: fakeflodder waits grace period before checking stationary players.
 // Players are marked dead server-side and respawn after RESPAWN_MS.
 // ============================================================
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const crypto = require('crypto');
 const { Server } = require('socket.io');
+const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
+const Stripe = require('stripe');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+const stripe = process.env.STRIPE_SECRET_KEY ? Stripe(process.env.STRIPE_SECRET_KEY) : null;
+
+// ------------------------------------------------------------
+// Stripe webhook — MUST be registered with express.raw() and BEFORE
+// express.json() below, since Stripe's signature check needs the exact raw
+// request body. If this were parsed as JSON first, the signature would
+// never verify. See handleStripeWebhook() further down for the logic.
+// ------------------------------------------------------------
+app.post('/api/stripe/webhook', express.raw({ type: 'application/json' }), (req, res) => handleStripeWebhook(req, res));
+
+app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
+
+
+// ------------------------------------------------------------
+// Auth — MongoDB-backed accounts (username + password, username unique) via
+// Mongoose. Sessions are just a random token kept in memory (token ->
+// username); no need for anything heavier for a game this size.
+// Connection needs MONGO_PASS in .env; MONGO_USER/MONGO_CLUSTER/MONGODB_DB
+// are optional overrides (defaulted below to match your cluster).
+// ------------------------------------------------------------
+const userSchema = new mongoose.Schema({
+  username: { type: String, required: true },
+  usernameLower: { type: String, required: true, unique: true },
+  passwordHash: { type: String, required: true },
+  ownedSkins: { type: [String], default: [] }, // ids from PREMIUM_SKINS the user has paid for
+  createdAt: { type: Date, default: Date.now },
+});
+const User = mongoose.model('User', userSchema);
+
+// One row per completed purchase — not strictly needed for the game to
+// function (ownedSkins on User is what's actually checked), but cheap to
+// keep and useful if you ever need to answer "did this payment go through"
+// or reconcile against Stripe's own records.
+const purchaseSchema = new mongoose.Schema({
+  username: { type: String, required: true },
+  skinId: { type: String, required: true },
+  stripeSessionId: { type: String, required: true, unique: true },
+  amountCents: { type: Number, required: true },
+  creatorCutCents: { type: Number, required: true },
+  creatorStripeAccountId: { type: String },
+  createdAt: { type: Date, default: Date.now },
+});
+const Purchase = mongoose.model('Purchase', purchaseSchema);
+
+const sessions = new Map(); // token -> username
+
+function createSession(username) {
+  const token = crypto.randomBytes(24).toString('hex');
+  sessions.set(token, username);
+  return token;
+}
+
+app.post('/api/register', async (req, res) => {
+  try {
+    const username = String(req.body.username || '').trim();
+    const password = String(req.body.password || '');
+
+    if (username.length < 3 || username.length > 20) {
+      return res.status(400).json({ error: 'Username must be 3-20 characters.' });
+    }
+    if (password.length < 4) {
+      return res.status(400).json({ error: 'Password must be at least 4 characters.' });
+    }
+
+    const usernameLower = username.toLowerCase();
+    const existing = await User.findOne({ usernameLower });
+    if (existing) {
+      return res.status(409).json({ error: 'That username is already taken.' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    await User.create({ username, usernameLower, passwordHash });
+
+    const token = createSession(username);
+    res.json({ token, username });
+  } catch (err) {
+    if (err && err.code === 11000) {
+      return res.status(409).json({ error: 'That username is already taken.' });
+    }
+    console.error('register error:', err);
+    res.status(500).json({ error: 'Something went wrong. Try again.' });
+  }
+});
+
+app.post('/api/login', async (req, res) => {
+  try {
+    const username = String(req.body.username || '').trim();
+    const password = String(req.body.password || '');
+
+    const user = await User.findOne({ usernameLower: username.toLowerCase() });
+    if (!user) return res.status(401).json({ error: 'Incorrect username or password.' });
+
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) return res.status(401).json({ error: 'Incorrect username or password.' });
+
+    const token = createSession(user.username);
+    res.json({ token, username: user.username });
+  } catch (err) {
+    console.error('login error:', err);
+    res.status(500).json({ error: 'Something went wrong. Try again.' });
+  }
+});
+
+// Lets the client silently restore a session after a page refresh.
+// Accepts the token from either a POST body or (for GET requests) a header —
+// used by every authenticated REST route below, not just /api/session.
+function usernameFromReq(req) {
+  const token = String((req.body && req.body.token) || req.headers['x-auth-token'] || '');
+  return sessions.get(token) || null;
+}
+
+app.post('/api/session', (req, res) => {
+  const username = usernameFromReq(req);
+  if (!username) return res.status(401).json({ error: 'Session expired.' });
+  res.json({ username });
+});
+
+app.post('/api/logout', (req, res) => {
+  sessions.delete(String(req.body.token || ''));
+  res.json({ ok: true });
+});
+
+// ------------------------------------------------------------
+// Premium skins — real-money purchases via Stripe Connect. To add a new
+// one: give it an id below, create a matching Product/Price in the Stripe
+// Dashboard, and drop its Price id + the creator's connected account id in
+// .env (see the two vars aqua uses). priceEUR/creatorCutEUR are just for
+// display — the ACTUAL charge/split amounts come from Stripe (the Price
+// object for the charge, application_fee_amount for the split), so those
+// two numbers must be kept in sync with what you set up in Stripe.
+// ------------------------------------------------------------
+const PREMIUM_SKINS = {
+  aqua: {
+    id: 'aqua',
+    name: 'Aqua',
+    priceEUR: 2.00,
+    creatorCutEUR: 1.00,
+    stripePriceId: process.env.STRIPE_PRICE_AQUA_SKIN,
+    creatorStripeAccountId: process.env.AQUA_CREATOR_STRIPE_ACCOUNT_ID,
+  },
+};
+
+app.get('/api/premium/owned', async (req, res) => {
+  const username = usernameFromReq(req);
+  if (!username) return res.status(401).json({ error: 'Not logged in.' });
+  const user = await User.findOne({ usernameLower: username.toLowerCase() });
+  res.json({ ownedSkins: user ? user.ownedSkins : [] });
+});
+
+app.post('/api/premium/checkout', async (req, res) => {
+  try {
+    if (!stripe) return res.status(500).json({ error: 'Payments are not configured on this server.' });
+
+    const username = usernameFromReq(req);
+    if (!username) return res.status(401).json({ error: 'Not logged in.' });
+
+    const skin = PREMIUM_SKINS[req.body.skinId];
+    if (!skin) return res.status(404).json({ error: 'Unknown skin.' });
+    if (!skin.stripePriceId || !skin.creatorStripeAccountId) {
+      return res.status(500).json({ error: `${skin.name} isn't fully set up yet (missing Stripe price or creator account).` });
+    }
+
+    const user = await User.findOne({ usernameLower: username.toLowerCase() });
+    if (user && user.ownedSkins.includes(skin.id)) {
+      return res.status(409).json({ error: 'You already own this skin.' });
+    }
+
+    const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const creatorCutCents = Math.round(skin.creatorCutEUR * 100);
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [{ price: skin.stripePriceId, quantity: 1 }],
+      payment_intent_data: {
+        application_fee_amount: creatorCutCents, // this slice goes to the creator, the rest stays with you
+        transfer_data: { destination: skin.creatorStripeAccountId },
+      },
+      metadata: { username, skinId: skin.id },
+      success_url: `${baseUrl}/?purchase=success`,
+      cancel_url: `${baseUrl}/?purchase=cancelled`,
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('checkout error:', err);
+    res.status(500).json({ error: 'Could not start checkout. Try again.' });
+  }
+});
+
+// Called by app.post('/api/stripe/webhook', ...) registered up near the top
+// of the file (has to be before express.json() — see the comment there).
+async function handleStripeWebhook(req, res) {
+  if (!stripe || !process.env.STRIPE_WEBHOOK_SECRET) {
+    return res.status(500).send('Webhook not configured.');
+  }
+
+  let event;
+  try {
+    event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], process.env.STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object;
+    const { username, skinId } = session.metadata || {};
+    const skin = PREMIUM_SKINS[skinId];
+
+    if (username && skin) {
+      try {
+        await User.updateOne(
+          { usernameLower: username.toLowerCase() },
+          { $addToSet: { ownedSkins: skin.id } } // $addToSet: safe even if Stripe ever retries this webhook
+        );
+        await Purchase.create({
+          username,
+          skinId: skin.id,
+          stripeSessionId: session.id,
+          amountCents: session.amount_total,
+          creatorCutCents: Math.round(skin.creatorCutEUR * 100),
+          creatorStripeAccountId: skin.creatorStripeAccountId,
+        });
+        console.log(`${username} unlocked premium skin "${skin.id}"`);
+      } catch (err) {
+        // duplicate stripeSessionId (Stripe retried a webhook we already handled) — not an error
+        if (err.code !== 11000) console.error('Error recording purchase:', err);
+      }
+    }
+  }
+
+  res.json({ received: true });
+}
 
 // ---- Config (keep in sync with client) ----
 const CONFIG = {
@@ -85,38 +323,42 @@ function makePlayer(username) {
 // ------------------------------------------------------------
 const SHOP_CATALOG = {
   fire: {
-    id: 'fire', name: 'Fire', price: 100, currency: 'logs',
+    id: 'fire', name: 'Fire', price: 10, currency: 'logs',
     x: 195, y: 0.2, width: 110, height: 110,
     spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif',
     bought: false, contributions: {},
   },
   house: {
-    id: 'house', name: 'House', price: 500, currency: 'logs',
+    id: 'house', name: 'House', price: 10, currency: 'logs',
     x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
     sprite: 'assets/house.gif',
+    zIndex: -1, // background decorations render behind the lake(0)/trees(1)/players(2); house is frontmost of this group
     next: { id: 'house2', priceMultiplier: 2, sprite: 'assets/house2.gif' },
     bought: false, contributions: {},
   },
   lamp: {
-    id: 'lamp', name: 'Lamp', price: 100, currency: 'logs',
+    id: 'lamp', name: 'Lamp', price: 10, currency: 'logs',
     x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
     sprite: 'assets/lamp.gif',
+    zIndex: -3,
     bought: false, contributions: {},
   },
-  // wall: {
-  //   id: 'wall', name: 'Wall', price: 10, currency: 'logs',
-  //   x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
-  //   sprite: 'assets/wall.gif',
-  //   bought: false, contributions: {},
-  // },
+  wall: {
+    id: 'wall', name: 'Wall', price: 10, currency: 'logs',
+    x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
+    sprite: 'assets/wall.gif',
+    zIndex: -4, // behind every other decoration/tree/lake — furthest back
+    bought: false, contributions: {},
+  },
   farm: {
-    id: 'farm', name: 'Farm', price: 500, currency: 'logs',
+    id: 'farm', name: 'Farm', price: 10, currency: 'logs',
     x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
     sprite: 'assets/farm.gif',
+    zIndex: -2, // behind house, in front of wall/lamp
     bought: false, contributions: {},
   },
   platform: {
-    id: 'platform', name: 'Platform', price: 100, currency: 'logs',
+    id: 'platform', name: 'Platform', price: 10, currency: 'logs',
     x: 150, y: 7.2, width: 75, height: 75, // matches: left 30%, bottom 18.8%, width/height 15% of the map
     surfaceOffset: -15, // nudge the walkable top surface up(+)/down(-) if it doesn't line up with the sprite's art
     sprite: 'assets/platform.gif',
@@ -362,8 +604,24 @@ function killPlayerInRoom(code, pid, cause) {
     room.players[pid].dead = false;
     room.players[pid].x = Math.floor(Math.random() * (CONFIG.MAP_SIZE - CONFIG.CHAR_WIDTH));
     room.players[pid].y = 0;
-    io.to(code).emit('playerRespawn', { id: pid, player: room.players[pid] });
+    io.to(code).emit('playerRespawn', { id: pid, player: publicPlayer(room.players[pid]) });
   }, RESPAWN_MS);
+}
+
+// Server-internal bookkeeping (hideTimer is a Node Timeout object, which
+// socket.io's serializer will crash trying to inspect — "Maximum call stack
+// size exceeded" in hasBinary — if it's ever included in an emit). Every
+// player object that goes out over a socket must go through this first.
+function publicPlayer(p) {
+  if (!p) return p;
+  const { x, y, facing, state, outfit, username, dead, hiding } = p;
+  return { x, y, facing, state, outfit, username, dead, hiding };
+}
+
+function publicPlayers(players) {
+  const out = {};
+  Object.keys(players).forEach((id) => { out[id] = publicPlayer(players[id]); });
+  return out;
 }
 
 function houseIsPresent(room) {
@@ -408,7 +666,7 @@ function stopHiding(code, socketId, viaTimeout) {
   p.x = Math.floor(Math.random() * (CONFIG.MAP_SIZE - CONFIG.CHAR_WIDTH));
   p.y = 0;
 
-  io.to(code).emit('playerHiding', { id: socketId, hiding: false, player: p });
+  io.to(code).emit('playerHiding', { id: socketId, hiding: false, player: publicPlayer(p) });
   sysMsg(code, viaTimeout ? `${p.username} comes back out.` : `${p.username} steps out of the house.`);
 }
 
@@ -436,13 +694,13 @@ io.on('connection', (socket) => {
     socket.emit('roomJoined', {
       code,
       id: socket.id,
-      players: room.players,
+      players: publicPlayers(room.players),
       trees: room.trees,
       purchasableItems: room.purchasableItems,
       fireOn: room.fireOn,
     });
 
-    socket.to(code).emit('playerJoined', { id: socket.id, player: room.players[socket.id] });
+    socket.to(code).emit('playerJoined', { id: socket.id, player: publicPlayer(room.players[socket.id]) });
 
     if (!room.monsterTimer) scheduleMonsterForRoom(code);
     if (!room.lavaTimer) scheduleLavaForRoom(code);
@@ -487,7 +745,7 @@ io.on('connection', (socket) => {
       killPlayerInRoom(code, socket.id, 'the flodder');
     }
 
-    socket.to(code).emit('playerUpdated', { id: socket.id, player: room.players[socket.id] });
+    socket.to(code).emit('playerUpdated', { id: socket.id, player: publicPlayer(room.players[socket.id]) });
   });
 
   socket.on('emoji', (emoji) => {
@@ -551,6 +809,7 @@ io.on('connection', (socket) => {
           y: n.y != null ? n.y : item.y,
           width: n.width != null ? n.width : item.width,
           height: n.height != null ? n.height : item.height,
+          zIndex: n.zIndex != null ? n.zIndex : item.zIndex,
           sprite: n.sprite,
           next: n.next || null, // supports chaining a 3rd tier, etc.
           contributions: {},
@@ -608,6 +867,32 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Only MONGO_PASS is required — these default to match your cluster, but
+// can be overridden in .env if you ever rotate the user or move clusters.
+const MONGO_USER = process.env.MONGO_USER || 'Cfroz';
+const MONGO_CLUSTER = process.env.MONGO_CLUSTER || 'cluster0.qbivfie.mongodb.net';
+const MONGO_DB = process.env.MONGODB_DB || 'crahden';
+
+async function start() {
+  if (!process.env.MONGO_PASS) {
+    console.error('Missing MONGO_PASS in .env — the login system needs it to connect to MongoDB.');
+    process.exit(1);
+  }
+  if (!stripe) {
+    console.warn('STRIPE_SECRET_KEY not set — premium skins will be disabled, everything else still works.');
+  } else if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    console.warn('STRIPE_WEBHOOK_SECRET not set — checkouts can start but purchases will never actually unlock a skin.');
+  }
+
+  await mongoose.connect(
+    `mongodb+srv://${MONGO_USER}:${process.env.MONGO_PASS}@${MONGO_CLUSTER}/${MONGO_DB}`
+  );
+  await User.init(); // makes sure the unique index on usernameLower exists before we accept registrations
+  console.log('Connected to MongoDB');
+
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+start();

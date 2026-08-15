@@ -97,7 +97,7 @@ img, #map, .player, .tree, .lake { image-rendering: pixelated; }
   border: 3px solid var(--wood-dark);
   border-radius: 0px;
   color: #3a2412;
-  font-size: 11px;
+  font-size: 20px;
   padding: 12px 16px;
   cursor: pointer;
   box-shadow: 0 4px 0 var(--wood-dark);
@@ -121,13 +121,14 @@ img, #map, .player, .tree, .lake { image-rendering: pixelated; }
 .pill {
   background: var(--accent-yellow);
   border-radius: 0px;
-  font-size: 10px;
+  /* font-size: 10px; */
   padding: 10px 10px;
 }
 
 /* ============================================================
    LOBBY
    ============================================================ */
+#auth-screen,
 #lobby {
   position: fixed;
   inset: 0;
@@ -136,6 +137,22 @@ img, #map, .player, .tree, .lake { image-rendering: pixelated; }
   justify-content: center;
   z-index: 20;
   padding: 16px;
+}
+
+#auth-error {
+  margin-top: 14px;
+  color: var(--accent-red-dark);
+  font-size: 15px;
+  min-height: 16px;
+}
+
+#logout-link {
+  text-align: right;
+  font-size: 13px;
+  color: var(--accent-blue-dark, #2d7aa8);
+  cursor: pointer;
+  margin: -8px 0 16px;
+  text-decoration: underline;
 }
 
 .lobby-card {
@@ -229,6 +246,7 @@ img, #map, .player, .tree, .lake { image-rendering: pixelated; }
 
 #map {
   position: relative;
+  z-index: 0; /* establishes a stacking context so children's z-index (including negative, e.g. the wall) is scoped to #map instead of leaking into the page's global stacking order */
   width: min(92vw, 560px);
   aspect-ratio: 1 / 1;
   overflow: hidden;

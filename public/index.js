@@ -63,43 +63,49 @@ const CONFIG = {
     mantis: { name: 'Mantis', price: 5, currency: 'hay' },
     pinker: { name: 'Pinker', price: 300, currency: 'fish2' },
     phantom: { name: 'Phantom', price: 100, currency: 'fish4' },
-    aqua: { name: 'Aqua', price: 1, currency: 'logs' },
+    // Real-money skin — no price/currency (that lives on the server, tied to
+    // the actual Stripe Price), just premium:true + what to show for it.
+    aqua: { name: 'Aqua', premium: true, priceEUR: 2.00 },
   },
 
   SHOP_CATALOG: {
     fire: {
-      id: 'fire', name: 'Fire', price: 100, currency: 'logs',
+      id: 'fire', name: 'Fire', price: 10, currency: 'logs',
       x: 195, y: 0.2, width: 110, height: 110,
       spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif',
       bought: false, contributions: {},
     },
     house: {
-      id: 'house', name: 'House', price: 500, currency: 'logs',
+      id: 'house', name: 'House', price: 10, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/house.gif',
+      zIndex: -1, // background decorations render behind the lake(0)/trees(1)/players(2); house is frontmost of this group
       next: { id: 'house2', priceMultiplier: 2, sprite: 'assets/house2.gif' },
       bought: false, contributions: {},
     },
     lamp: {
-      id: 'lamp', name: 'Lamp', price: 100, currency: 'logs',
+      id: 'lamp', name: 'Lamp', price: 10, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/lamp.gif',
+      zIndex: -3,
       bought: false, contributions: {},
     },
-    // wall: {
-    //   id: 'wall', name: 'Wall', price: 10, currency: 'logs',
-    //   x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
-    //   sprite: 'assets/wall.gif',
-    //   bought: false, contributions: {},
-    // },
+    wall: {
+      id: 'wall', name: 'Wall', price: 10, currency: 'logs',
+      x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
+      sprite: 'assets/wall.gif',
+      zIndex: -4, // behind every other decoration/tree/lake — furthest back
+      bought: false, contributions: {},
+    },
     farm: {
-      id: 'farm', name: 'Farm', price: 500, currency: 'logs',
+      id: 'farm', name: 'Farm', price: 10, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/farm.gif',
+      zIndex: -2, // behind house, in front of wall/lamp
       bought: false, contributions: {},
     },
     platform: {
-      id: 'platform', name: 'Platform', price: 100, currency: 'logs',
+      id: 'platform', name: 'Platform', price: 10, currency: 'logs',
       x: 150, y: 7.2, width: 75, height: 75, // matches: left 30%, bottom 18.8%, width/height 15% of the map
       surfaceOffset: -15, // nudge the walkable top surface up(+)/down(-) if it doesn't line up with the sprite's art
       sprite: 'assets/platform.gif',
@@ -149,6 +155,101 @@ const roomCodeInput = document.getElementById('room-code-input');
 const lobbyError = document.getElementById('lobby-error');
 const chatInput = document.getElementById('chat-input');
 const chatLog = document.getElementById('chat-log');
+
+// ============================================================
+// Auth — MongoDB-backed username/password accounts. A logged-in session
+// (just a random token) is cached in localStorage so a page refresh doesn't
+// force a re-login; everything else (rooms, game state) is unaffected and
+// still keyed off whatever username came back from the server.
+// ============================================================
+const authScreenEl = document.getElementById('auth-screen');
+const authUsernameInput = document.getElementById('auth-username-input');
+const authPasswordInput = document.getElementById('auth-password-input');
+const authError = document.getElementById('auth-error');
+
+function enterLobbyAs(username) {
+  usernameInput.value = username;
+  authScreenEl.classList.add('hidden');
+  lobbyEl.classList.remove('hidden');
+  refreshPremiumOwnership();
+}
+
+async function submitAuth(endpoint) {
+  authError.textContent = '';
+  const username = authUsernameInput.value.trim();
+  const password = authPasswordInput.value;
+  if (!username || !password) {
+    authError.textContent = 'Enter a username and password.';
+    return;
+  }
+  try {
+    const res = await fetch(`/api/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      authError.textContent = data.error || 'Something went wrong.';
+      return;
+    }
+    localStorage.setItem('crahdenAuthToken', data.token);
+    enterLobbyAs(data.username);
+  } catch (err) {
+    authError.textContent = 'Could not reach the server. Try again.';
+  }
+}
+
+document.getElementById('login-btn').addEventListener('click', () => submitAuth('login'));
+document.getElementById('register-btn').addEventListener('click', () => submitAuth('register'));
+[authUsernameInput, authPasswordInput].forEach((input) => {
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submitAuth('login'); });
+});
+
+document.getElementById('logout-link').addEventListener('click', () => {
+  const token = localStorage.getItem('crahdenAuthToken');
+  if (token) fetch('/api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) }).catch(() => {});
+  localStorage.removeItem('crahdenAuthToken');
+  lobbyEl.classList.add('hidden');
+  authScreenEl.classList.remove('hidden');
+  authUsernameInput.value = '';
+  authPasswordInput.value = '';
+});
+
+// Try to silently restore a session on page load; fall back to the auth screen.
+(async () => {
+  const token = localStorage.getItem('crahdenAuthToken');
+  if (!token) return;
+  try {
+    const res = await fetch('/api/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) { localStorage.removeItem('crahdenAuthToken'); return; }
+    const data = await res.json();
+    enterLobbyAs(data.username);
+  } catch (err) {
+    // network hiccup — just leave the auth screen showing, no need to nuke the stored token
+  }
+})();
+
+// Coming back from Stripe Checkout — refreshPremiumOwnership() (called from
+// enterLobbyAs above) will already pick up the new skin once the webhook has
+// landed; this just gives a quick confirmation and tidies the URL.
+(() => {
+  const params = new URLSearchParams(window.location.search);
+  const purchase = params.get('purchase');
+  if (!purchase) return;
+  // At this point we're back on the room lobby screen (not inside a room yet),
+  // so the in-game chat log isn't visible — use the lobby's own message line.
+  if (purchase === 'success') {
+    setTimeout(() => { lobbyError.style.color = 'var(--accent-green, #7cb342)'; lobbyError.textContent = 'Thanks for your purchase! Check the shop for your new skin.'; }, 300);
+  } else if (purchase === 'cancelled') {
+    lobbyError.textContent = 'Checkout cancelled — no charge was made.';
+  }
+  window.history.replaceState({}, '', window.location.pathname);
+})();
 
 document.getElementById('create-room-btn').addEventListener('click', () => {
   const username = usernameInput.value.trim() || 'Player';
@@ -406,36 +507,42 @@ function tryInteract() {
     }
   }
 
-  // Farm — entirely client-side (per request): plant a seed, wait a minute, get hay.
-  // The farm's footprint currently covers the whole map (same as house/wall/lamp),
-  // so this triggers on any E press once it's bought, rather than needing proximity.
-  if (clientShop.farm && clientShop.farm.bought) {
-    lastInteract = now;
+  // Farm planting now happens by clicking the seed in your inventory (see
+  // plantSeed(), wired up in renderInventory()) instead of pressing E.
+}
 
-    if (farmGrowing) {
-      const remaining = Math.max(0, Math.ceil((farmGrowing.until - now) / 1000));
-      appendChatLog('System', remaining > 0 ? `The farm is still growing (${remaining}s left).` : 'The farm should be ready any moment.');
-      return;
-    }
-
-    if ((inventory.seed || 0) <= 0) {
-      appendChatLog('System', 'You need a seed to plant here (rare woodcutting drop past level 50).');
-      return;
-    }
-
-    inventory.seed -= 1;
-    renderInventory();
-    showFloatingIcon(localEl, CONFIG.SPRITES.seed, 'Planted');
-    appendChatLog('System', 'You planted a seed. Check back in a minute.');
-
-    farmGrowing = { until: now + CONFIG.FARM_GROW_MS };
-    setTimeout(() => {
-      farmGrowing = null;
-      addItem('hay', 1);
-      if (localEl) showFloatingIcon(localEl, CONFIG.SPRITES.hay, '+1');
-      appendChatLog('System', 'Your farm produced hay!');
-    }, CONFIG.FARM_GROW_MS);
+// Plant one seed on the farm — triggered by clicking the seed's inventory
+// slot. Entirely client-side, same as the rest of the farm/seed/hay loop.
+function plantSeed() {
+  if (!clientShop.farm || !clientShop.farm.bought) {
+    appendChatLog('System', 'There\'s no farm in this room yet — someone needs to fund one in the shop.');
+    return;
   }
+
+  const now = Date.now();
+  if (farmGrowing) {
+    const remaining = Math.max(0, Math.ceil((farmGrowing.until - now) / 1000));
+    appendChatLog('System', remaining > 0 ? `The farm is still growing (${remaining}s left).` : 'The farm should be ready any moment.');
+    return;
+  }
+
+  if ((inventory.seed || 0) <= 0) {
+    appendChatLog('System', 'You need a seed to plant here (rare woodcutting drop past level 50).');
+    return;
+  }
+
+  inventory.seed -= 1;
+  renderInventory();
+  if (localEl) showFloatingIcon(localEl, CONFIG.SPRITES.seed, 'Planted');
+  appendChatLog('System', 'You planted a seed. Check back in a minute.');
+
+  farmGrowing = { until: now + CONFIG.FARM_GROW_MS };
+  setTimeout(() => {
+    farmGrowing = null;
+    addItem('hay', 1);
+    if (localEl) showFloatingIcon(localEl, CONFIG.SPRITES.hay, '+1');
+    appendChatLog('System', 'Your farm produced hay!');
+  }, CONFIG.FARM_GROW_MS);
 }
 
 function showFloatingBubble(playerEl, innerHTML) {
@@ -488,6 +595,11 @@ function renderInventory() {
     if (entry) {
       const [itemId, count] = entry;
       slot.innerHTML = `<img src="${ITEM_ICONS[itemId] || CONFIG.SPRITES[itemId] || CONFIG.SPRITES.logs}" class="inv-icon"><span class="inv-count">${count}</span>`;
+      if (itemId === 'seed') {
+        slot.style.cursor = 'pointer';
+        slot.title = 'Click to plant on the farm';
+        slot.addEventListener('click', plantSeed);
+      }
     }
     grid.appendChild(slot);
   }
@@ -516,6 +628,7 @@ Object.keys(skills).forEach(renderSkill);
 
 const wardrobe = new Set();
 let equippedOutfit = null;
+let premiumCheckoutInFlight = false; // guards against double-clicking Buy and opening two Stripe tabs
 
 function buyOutfit(id) {
   const item = CONFIG.OUTFITS[id];
@@ -526,6 +639,49 @@ function buyOutfit(id) {
   wardrobe.add(id);
   renderInventory();
   renderShop();
+}
+
+// Real-money skin — hits the server to create a Stripe Checkout session,
+// then hands the browser off to Stripe's hosted payment page entirely.
+// Ownership is granted by the server's webhook once payment actually
+// completes, not by anything that happens here client-side.
+async function buyPremiumSkin(id) {
+  if (premiumCheckoutInFlight) return;
+  const token = localStorage.getItem('crahdenAuthToken');
+  if (!token) { appendChatLog('System', 'Log in to buy premium skins.'); return; }
+
+  premiumCheckoutInFlight = true;
+  try {
+    const res = await fetch('/api/premium/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, skinId: id }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      appendChatLog('System', data.error || 'Could not start checkout.');
+      premiumCheckoutInFlight = false;
+      return;
+    }
+    window.location.href = data.url; // off to Stripe — page navigates away, no need to reset the flag
+  } catch (err) {
+    appendChatLog('System', 'Could not reach the server. Try again.');
+    premiumCheckoutInFlight = false;
+  }
+}
+
+async function refreshPremiumOwnership() {
+  const token = localStorage.getItem('crahdenAuthToken');
+  if (!token) return;
+  try {
+    const res = await fetch('/api/premium/owned', { headers: { 'x-auth-token': token } });
+    if (!res.ok) return;
+    const data = await res.json();
+    (data.ownedSkins || []).forEach((id) => wardrobe.add(id));
+    renderShop();
+  } catch (err) {
+    // offline/hiccup — premium ownership just won't show up until next refresh, not fatal
+  }
 }
 
 function toggleEquip(id) {
@@ -542,10 +698,25 @@ function renderShop() {
 
   Object.entries(CONFIG.OUTFITS).forEach(([id, item]) => {
     const owned = wardrobe.has(id);
-    const have = inventory[item.currency] || 0;
-    const canAfford = have >= item.price;
     const card = document.createElement('div');
     card.className = 'shop-item';
+
+    if (item.premium) {
+      card.innerHTML = `
+        <img src="${outfitSprite('idle', id)}" class="shop-item-img" alt="${item.name}">
+        <div class="shop-item-name">${item.name} 💎</div>
+        <div class="shop-item-price">€${item.priceEUR.toFixed(2)}</div>
+        <button class="btn btn-sm ${owned ? 'btn-disabled' : 'btn-blue'}" ${owned ? 'disabled' : ''}>
+          ${owned ? 'Owned' : 'Buy'}
+        </button>
+      `;
+      if (!owned) card.querySelector('button').addEventListener('click', () => buyPremiumSkin(id));
+      shopItems.appendChild(card);
+      return;
+    }
+
+    const have = inventory[item.currency] || 0;
+    const canAfford = have >= item.price;
     card.innerHTML = `
       <img src="${outfitSprite('idle', id)}" class="shop-item-img" alt="${item.name}">
       <div class="shop-item-name">${item.name}</div>
@@ -663,13 +834,13 @@ function renderMapItems() {
       el = document.createElement('div');
       el.className = 'map-item';
       el.style.position = 'absolute';
-      el.style.width = pct(item.width || 120);
-      el.style.height = pct(item.height || 120);
+      el.style.width = pct(item.width != null ? item.width : 120);
+      el.style.height = pct(item.height != null ? item.height : 120);
       el.style.backgroundSize = 'contain';
       el.style.backgroundRepeat = 'no-repeat';
-      el.style.left = pct(item.x || 50);
+      el.style.left = pct(item.x != null ? item.x : 50); // was `item.x || 50` — broke for x:0 (falsy), causing the 10% offset
       el.style.bottom = pct(CONFIG.GROUND_HEIGHT + (item.y || 0));
-      el.style.zIndex = 1;
+      el.style.zIndex = item.zIndex != null ? item.zIndex : 1; // background decorations (wall/farm/house/lamp) set their own — see SHOP_CATALOG
       el.style.pointerEvents = 'auto';
       el.dataset.itemId = id;
       el.addEventListener('click', () => {

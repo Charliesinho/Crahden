@@ -9,14 +9,38 @@
 <body>
 
   <!-- ============ LOBBY (create/join room) ============ -->
-  <div id="lobby">
+  <!-- ============ AUTH (log in or create an account) ============ -->
+  <div id="auth-screen">
+    <div class="lobby-card">
+      <img id="titleImage" src="./assets/title.png" />
+      <p class="lobby-sub">Log in, or create a new account</p>
+
+      <label class="field-label">Username</label>
+      <input id="auth-username-input" class="text-input" placeholder="Username" maxlength="20" autocomplete="username">
+
+      <label class="field-label" style="margin-top: 12px;">Password</label>
+      <input id="auth-password-input" class="text-input" type="password" placeholder="Password" autocomplete="current-password">
+
+      <button id="login-btn" class="btn btn-yellow" style="width:100%; margin-top: 16px;">Log In</button>
+
+      <div class="lobby-divider"><span>new here?</span></div>
+
+      <button id="register-btn" class="btn btn-green" style="width:100%;">Create Account</button>
+
+      <p id="auth-error"></p>
+    </div>
+  </div>
+
+  <!-- ============ LOBBY (create/join room) ============ -->
+  <div id="lobby" class="hidden">
     <div class="lobby-card">
       <!-- <h1>Crahden</h1> -->
        <img id="titleImage" src="./assets/title.png" />
       <p class="lobby-sub">Create a room, or join a friend's with their code</p>
 
       <label class="field-label">Username</label>
-      <input id="username-input" class="text-input" placeholder="Your name" maxlength="14">
+      <input id="username-input" class="text-input" placeholder="Your name" maxlength="14" readonly>
+      <p id="logout-link">Not you? Log out</p>
 
       <button id="create-room-btn" class="btn btn-yellow">Create Room</button>
 
@@ -30,6 +54,7 @@
       <p id="lobby-error"></p>
     </div>
   </div>
+
 
   <!-- ============ GAME (hidden until a room is joined) ============ -->
   <div id="app" class="hidden">
