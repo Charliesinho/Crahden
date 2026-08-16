@@ -247,7 +247,10 @@ app.post('/api/premium/checkout', async (req, res) => {
     res.json({ url: session.url });
   } catch (err) {
     console.error('checkout error:', err);
-    res.status(500).json({ error: 'Could not start checkout. Try again.' });
+    // Surfacing the real Stripe message (not just a generic one) — this is
+    // almost always a Connect config issue (e.g. the connected account
+    // missing a capability), and err.message says exactly which one.
+    res.status(500).json({ error: err.message ? `Checkout failed: ${err.message}` : 'Could not start checkout. Try again.' });
   }
 });
 
