@@ -496,6 +496,38 @@ img, #map, .player, .tree, .lake { image-rendering: pixelated; }
     margin-bottom: 25px;
 }
 
+/* Shop — split into Structures / Skins / $ via a vertical icon strip on the left */
+#shop-layout {
+  display: flex;
+  gap: 8px;
+  height: 100%;
+}
+#shop-subtabs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.shop-subtab-btn {
+  width: 40px;
+  aspect-ratio: 1;
+  background: var(--wood);
+  border: 1px solid var(--wood-dark);
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px var(--wood-light);
+}
+.shop-subtab-btn.active {
+  background: #94d4ff26;
+}
+#shop-subcontent {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+.shop-subpane { display: none; }
+.shop-subpane.active { display: block; }
+
 /* Inventory */
 #inventory-grid {
   display: grid;
@@ -529,7 +561,7 @@ img, #map, .player, .tree, .lake { image-rendering: pixelated; }
 }
 
 /* Shop + Equipment item cards */
-#shop-items, #wardrobe-items {
+#shop-items, #wardrobe-items, #shop-structures, #shop-skins, #shop-premium {
   display: flex;
   flex-wrap: wrap;
 }

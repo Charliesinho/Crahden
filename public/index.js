@@ -275,27 +275,50 @@ creatorLink.addEventListener('click', async () => {
   }
 })();
 
-// Coming back from Stripe Checkout — refreshPremiumOwnership() (called from
-// enterLobbyAs above) will already pick up the new skin once the webhook has
-// landed; this just gives a quick confirmation and tidies the URL.
-(() => {
+// Coming back from Stripe Checkout — actively CONFIRMS the purchase against
+// the server (see /api/premium/confirm) rather than just hoping the webhook
+// already landed; this is what actually grants the skin most of the time now.
+(async () => {
   const params = new URLSearchParams(window.location.search);
   const purchase = params.get('purchase');
+  const sessionId = params.get('session_id');
   const onboarding = params.get('onboarding');
   if (!purchase && !onboarding) return;
-  // At this point we're back on the room lobby screen (not inside a room yet),
-  // so the in-game chat log isn't visible — use the lobby's own message line.
+  window.history.replaceState({}, '', window.location.pathname); // tidy the URL either way
+
+  // At this point we're back on the room lobby screen (not inside a room
+  // yet), so the in-game chat log isn't visible — use the lobby's own line.
   if (purchase === 'success') {
-    setTimeout(() => { lobbyError.style.color = 'var(--accent-green, #7cb342)'; lobbyError.textContent = 'Thanks for your purchase! Check the shop for your new skin.'; }, 300);
+    const token = localStorage.getItem('crahdenAuthToken');
+    if (token && sessionId) {
+      try {
+        const res = await fetch('/api/premium/confirm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, sessionId }),
+        });
+        const data = await res.json();
+        lobbyError.style.color = res.ok ? 'var(--accent-green, #7cb342)' : '';
+        lobbyError.textContent = res.ok
+          ? 'Thanks for your purchase! Check the shop for your new skin.'
+          : (data.error || 'Payment went through, but confirming it failed — contact support.');
+        if (res.ok) refreshPremiumOwnership();
+      } catch (err) {
+        lobbyError.textContent = 'Could not confirm your purchase — contact support if the skin never appears.';
+      }
+    } else {
+      lobbyError.style.color = 'var(--accent-green, #7cb342)';
+      lobbyError.textContent = 'Thanks for your purchase! Check the shop for your new skin.';
+    }
   } else if (purchase === 'cancelled') {
     lobbyError.textContent = 'Checkout cancelled — no charge was made.';
   } else if (onboarding === 'return') {
     // Stripe reviews submitted info asynchronously, so this doesn't
     // necessarily mean onboarding is fully approved yet — refreshCreatorLinkText()
     // (called from enterLobbyAs above) will reflect the real status once it lands.
-    setTimeout(() => { lobbyError.style.color = 'var(--accent-green, #7cb342)'; lobbyError.textContent = 'Stripe onboarding submitted — this can take a moment to finish processing.'; }, 300);
+    lobbyError.style.color = 'var(--accent-green, #7cb342)';
+    lobbyError.textContent = 'Stripe onboarding submitted — this can take a moment to finish processing.';
   }
-  window.history.replaceState({}, '', window.location.pathname);
 })();
 
 document.getElementById('create-room-btn').addEventListener('click', () => {
@@ -739,31 +762,25 @@ function toggleEquip(id) {
 }
 
 function renderShop() {
-  const shopItems = document.getElementById('shop-items');
-  if (!shopItems) return;
-  shopItems.innerHTML = '';
+  renderShopSkins();
+  renderShopPremium();
+  renderShopStructures();
+  renderWardrobe();
+  renderMapItems();
+}
 
-  Object.entries(CONFIG.OUTFITS).forEach(([id, item]) => {
+function renderShopSkins() {
+  const container = document.getElementById('shop-skins');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const entries = Object.entries(CONFIG.OUTFITS).filter(([, item]) => !item.premium);
+  entries.forEach(([id, item]) => {
     const owned = wardrobe.has(id);
-    const card = document.createElement('div');
-    card.className = 'shop-item';
-
-    if (item.premium) {
-      card.innerHTML = `
-        <img src="${outfitSprite('idle', id)}" class="shop-item-img" alt="${item.name}">
-        <div class="shop-item-name">${item.name} 💎</div>
-        <div class="shop-item-price">€${item.priceEUR.toFixed(2)}</div>
-        <button class="btn btn-sm ${owned ? 'btn-disabled' : 'btn-blue'}" ${owned ? 'disabled' : ''}>
-          ${owned ? 'Owned' : 'Buy'}
-        </button>
-      `;
-      if (!owned) card.querySelector('button').addEventListener('click', () => buyPremiumSkin(id));
-      shopItems.appendChild(card);
-      return;
-    }
-
     const have = inventory[item.currency] || 0;
     const canAfford = have >= item.price;
+    const card = document.createElement('div');
+    card.className = 'shop-item';
     card.innerHTML = `
       <img src="${outfitSprite('idle', id)}" class="shop-item-img" alt="${item.name}">
       <div class="shop-item-name">${item.name}</div>
@@ -775,17 +792,46 @@ function renderShop() {
     if (!owned && canAfford) {
       card.querySelector('button').addEventListener('click', () => buyOutfit(id));
     }
-    shopItems.appendChild(card);
+    container.appendChild(card);
   });
+}
 
-  const sep = document.createElement('div');
-  sep.style.width = '100%';
-  sep.style.height = '8px';
-  shopItems.appendChild(sep);
+function renderShopPremium() {
+  const container = document.getElementById('shop-premium');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const entries = Object.entries(CONFIG.OUTFITS).filter(([, item]) => item.premium);
+  if (entries.length === 0) {
+    container.innerHTML = '<p class="empty-msg">No premium skins yet.</p>';
+    return;
+  }
+
+  entries.forEach(([id, item]) => {
+    const owned = wardrobe.has(id);
+    const card = document.createElement('div');
+    card.className = 'shop-item';
+    card.innerHTML = `
+      <img src="${outfitSprite('idle', id)}" class="shop-item-img" alt="${item.name}">
+      <div class="shop-item-name">${item.name} 💎</div>
+      <div class="shop-item-price">€${item.priceEUR.toFixed(2)}</div>
+      <button class="btn btn-sm ${owned ? 'btn-disabled' : 'btn-blue'}" ${owned ? 'disabled' : ''}>
+        ${owned ? 'Owned' : 'Buy'}
+      </button>
+    `;
+    if (!owned) card.querySelector('button').addEventListener('click', () => buyPremiumSkin(id));
+    container.appendChild(card);
+  });
+}
+
+function renderShopStructures() {
+  const container = document.getElementById('shop-structures');
+  if (!container) return;
+  container.innerHTML = '';
 
   Object.entries(clientShop).forEach(([id, item]) => {
     const owned = item.bought;
-    const total = clientShopTotals[id] || Object.values(item.contributions || {}).reduce((a,b)=>a+(b||0),0);
+    const total = clientShopTotals[id] || Object.values(item.contributions || {}).reduce((a, b) => a + (b || 0), 0);
     const card = document.createElement('div');
     card.className = 'shop-item';
     card.innerHTML = `
@@ -807,23 +853,29 @@ function renderShop() {
       btn100.addEventListener('click', () => tryContribute(id, 100));
       btnContainer.appendChild(btn10);
       // btnContainer.appendChild(btn100);
+    } else if (id === 'fire') {
+      const toggleBtn = document.createElement('button');
+      toggleBtn.className = 'btn btn-sm btn-blue';
+      toggleBtn.textContent = clientFireOn ? 'Turn Off' : 'Turn On';
+      toggleBtn.addEventListener('click', () => socket.emit('toggleFire'));
+      btnContainer.appendChild(toggleBtn);
     } else {
-      if (id === 'fire') {
-        const toggleBtn = document.createElement('button');
-        toggleBtn.className = 'btn btn-sm btn-blue';
-        toggleBtn.textContent = clientFireOn ? 'Turn Off' : 'Turn On';
-        toggleBtn.addEventListener('click', () => socket.emit('toggleFire'));
-        btnContainer.appendChild(toggleBtn);
-      } else {
-        btnContainer.innerHTML = '<div style="font-size:12px;color:#9a9a9a">Purchased</div>';
-      }
+      btnContainer.innerHTML = '<div style="font-size:12px;color:#9a9a9a">Purchased</div>';
     }
-    shopItems.appendChild(card);
+    container.appendChild(card);
   });
-
-  renderWardrobe();
-  renderMapItems();
 }
+
+document.querySelectorAll('.shop-subtab-btn').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.shop-subtab-btn').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    const target = btn.dataset.shopTab;
+    document.querySelectorAll('.shop-subpane').forEach((pane) => {
+      pane.classList.toggle('active', pane.dataset.shopPane === target);
+    });
+  });
+});
 
 function tryContribute(itemId, amount) {
   const item = clientShop[itemId];

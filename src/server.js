@@ -240,7 +240,7 @@ app.post('/api/premium/checkout', async (req, res) => {
         transfer_data: { destination: creatorAccountId },
       },
       metadata: { username, skinId: skin.id },
-      success_url: `${baseUrl}/?purchase=success`,
+      success_url: `${baseUrl}/?purchase=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/?purchase=cancelled`,
     });
 
@@ -254,6 +254,75 @@ app.post('/api/premium/checkout', async (req, res) => {
   }
 });
 
+// Grants a skin from a completed Checkout Session — shared by both the
+// webhook (handleStripeWebhook, further down) and /api/premium/confirm just
+// below. Having two paths to the same result is intentional: webhooks can
+// fail to arrive for all sorts of reasons outside your control (a
+// misconfigured endpoint, Stripe having an incident, a firewall), so the
+// confirm endpoint — called the instant the browser lands back on
+// success_url — makes unlocking the skin NOT depend on the webhook ever
+// showing up, while the webhook still runs too in case the browser never
+// makes it back (closed tab, connection drop, etc). $addToSet plus the
+// unique index on stripeSessionId make it safe if both paths run for the
+// same purchase.
+async function grantSkinFromSession(session) {
+  const { username, skinId } = session.metadata || {};
+  const skin = PREMIUM_SKINS[skinId];
+  if (!username || !skin) return null;
+
+  await User.updateOne(
+    { usernameLower: username.toLowerCase() },
+    { $addToSet: { ownedSkins: skin.id } }
+  );
+
+  try {
+    const creatorAccountId = await resolveCreatorAccount(skin);
+    await Purchase.create({
+      username,
+      skinId: skin.id,
+      stripeSessionId: session.id,
+      amountCents: session.amount_total,
+      creatorCutCents: Math.round(skin.creatorCutEUR * 100),
+      creatorStripeAccountId: creatorAccountId,
+    });
+  } catch (err) {
+    if (err.code !== 11000) console.error('Error recording purchase:', err); // 11000 = already recorded by the other path
+  }
+
+  return skin;
+}
+
+// Called by the client the instant it lands back on success_url — verifies
+// the payment directly with Stripe (never trusts the client's say-so) and
+// grants the skin right away instead of waiting on the webhook.
+app.post('/api/premium/confirm', async (req, res) => {
+  try {
+    if (!stripe) return res.status(500).json({ error: 'Payments are not configured on this server.' });
+
+    const username = usernameFromReq(req);
+    if (!username) return res.status(401).json({ error: 'Not logged in.' });
+
+    const sessionId = String(req.body.sessionId || '');
+    if (!sessionId) return res.status(400).json({ error: 'Missing session id.' });
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (session.payment_status !== 'paid') {
+      return res.status(402).json({ error: 'Payment has not completed yet.' });
+    }
+    if (!session.metadata || session.metadata.username !== username) {
+      return res.status(403).json({ error: 'This purchase belongs to a different account.' });
+    }
+
+    const skin = await grantSkinFromSession(session);
+    if (!skin) return res.status(404).json({ error: 'Unknown skin.' });
+
+    res.json({ ok: true, skinId: skin.id });
+  } catch (err) {
+    console.error('confirm error:', err);
+    res.status(500).json({ error: 'Could not confirm your purchase — contact support if this keeps happening.' });
+  }
+});
+
 // ------------------------------------------------------------
 // Creator self-onboarding (Stripe Connect Express). Any logged-in game
 // account can become a creator this way — you still separately decide who
@@ -261,6 +330,25 @@ app.post('/api/premium/checkout', async (req, res) => {
 // this just removes the need for you to manually create their Stripe
 // account and hand them a link.
 // ------------------------------------------------------------
+// ------------------------------------------------------------
+// Creator self-onboarding (Stripe Connect Express). Any logged-in game
+// account can become a creator this way — you still separately decide who
+// gets paid for what by setting creatorUsername on a skin in PREMIUM_SKINS,
+// this just removes the need for you to manually create their Stripe
+// account and hand them a link.
+//
+// Access is gated by this allowlist — add a username here to let them in.
+// Everyone else gets a "contact us" message instead of ever reaching Stripe.
+// ------------------------------------------------------------
+const CREATOR_ALLOWLIST = [
+  // 'SomeArtistUsername',
+];
+const CREATOR_CONTACT_MESSAGE = 'You need to contact plypoode@gmail.com to become a Crahden creator.';
+
+function isAllowedCreator(username) {
+  return CREATOR_ALLOWLIST.some((u) => u.toLowerCase() === username.toLowerCase());
+}
+
 app.post('/api/creator/onboard', async (req, res) => {
   try {
     if (!stripe) return res.status(500).json({ error: 'Payments are not configured on this server.' });
@@ -270,6 +358,13 @@ app.post('/api/creator/onboard', async (req, res) => {
 
     const user = await User.findOne({ usernameLower: username.toLowerCase() });
     if (!user) return res.status(404).json({ error: 'Account not found.' });
+
+    // Already has an account (allowlisted in the past, or already started) —
+    // let them continue/resume even if they were later removed from the
+    // list, rather than stranding an in-progress or completed onboarding.
+    if (!user.stripeAccountId && !isAllowedCreator(username)) {
+      return res.status(403).json({ error: CREATOR_CONTACT_MESSAGE });
+    }
 
     let accountId = user.stripeAccountId;
     if (!accountId) {
@@ -353,29 +448,11 @@ async function handleStripeWebhook(req, res) {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object;
-    const { username, skinId } = session.metadata || {};
-    const skin = PREMIUM_SKINS[skinId];
-
-    if (username && skin) {
-      try {
-        await User.updateOne(
-          { usernameLower: username.toLowerCase() },
-          { $addToSet: { ownedSkins: skin.id } } // $addToSet: safe even if Stripe ever retries this webhook
-        );
-        const creatorAccountId = await resolveCreatorAccount(skin);
-        await Purchase.create({
-          username,
-          skinId: skin.id,
-          stripeSessionId: session.id,
-          amountCents: session.amount_total,
-          creatorCutCents: Math.round(skin.creatorCutEUR * 100),
-          creatorStripeAccountId: creatorAccountId,
-        });
-        console.log(`${username} unlocked premium skin "${skin.id}"`);
-      } catch (err) {
-        // duplicate stripeSessionId (Stripe retried a webhook we already handled) — not an error
-        if (err.code !== 11000) console.error('Error recording purchase:', err);
-      }
+    try {
+      const skin = await grantSkinFromSession(session);
+      if (skin) console.log(`${session.metadata?.username} unlocked premium skin "${skin.id}" (via webhook)`);
+    } catch (err) {
+      console.error('Error granting skin from webhook:', err);
     }
   }
 

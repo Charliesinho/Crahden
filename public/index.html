@@ -111,7 +111,24 @@
 
           <div class="tab-pane" data-pane="shop">
             <h3>Shop</h3>
-            <div id="shop-items"></div>
+            <div id="shop-layout">
+              <div id="shop-subtabs">
+                <button class="shop-subtab-btn active" data-shop-tab="structures" title="Structures">🏛️</button>
+                <button class="shop-subtab-btn" data-shop-tab="skins" title="Skins">👕</button>
+                <button class="shop-subtab-btn" data-shop-tab="premium" title="Real-money shop">💲</button>
+              </div>
+              <div id="shop-subcontent">
+                <div class="shop-subpane active" data-shop-pane="structures">
+                  <div id="shop-structures"></div>
+                </div>
+                <div class="shop-subpane" data-shop-pane="skins">
+                  <div id="shop-skins"></div>
+                </div>
+                <div class="shop-subpane" data-shop-pane="premium">
+                  <div id="shop-premium"></div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="tab-pane" data-pane="emotes">
