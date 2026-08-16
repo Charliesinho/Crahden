@@ -66,6 +66,21 @@ const purchaseSchema = new mongoose.Schema({
 });
 const Purchase = mongoose.model('Purchase', purchaseSchema);
 
+// One row per checkout that's been STARTED but not yet confirmed paid.
+// Created the moment a Checkout Session is created, deleted once the skin
+// is actually granted (by the confirm endpoint, the webhook, or the
+// reconciliation check below — whichever gets there first). This is what
+// lets a purchase self-heal on next login even if the browser never makes
+// it back to success_url AND the webhook never arrives — both of which
+// have already happened at least once, hence this existing at all.
+const pendingCheckoutSchema = new mongoose.Schema({
+  username: { type: String, required: true },
+  skinId: { type: String, required: true },
+  stripeSessionId: { type: String, required: true, unique: true },
+  createdAt: { type: Date, default: Date.now },
+});
+const PendingCheckout = mongoose.model('PendingCheckout', pendingCheckoutSchema);
+
 const sessions = new Map(); // token -> username
 
 function createSession(username) {
@@ -131,6 +146,17 @@ app.post('/api/login', async (req, res) => {
 function usernameFromReq(req) {
   const token = String((req.body && req.body.token) || req.headers['x-auth-token'] || '');
   return sessions.get(token) || null;
+}
+
+// Trailing slash on APP_BASE_URL (e.g. "https://yourapp.com/") is a really
+// easy mistake to make in .env and produces a DOUBLE slash everywhere this
+// gets combined with a leading-slash path — which browsers can choke on in
+// surprising ways (see the history.replaceState fix on the client for what
+// that actually broke). Stripped here once so nothing downstream has to think
+// about it.
+function getBaseUrl(req) {
+  const base = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+  return base.replace(/\/+$/, '');
 }
 
 app.post('/api/session', (req, res) => {
@@ -202,6 +228,12 @@ async function resolveCreatorAccount(skin) {
 app.get('/api/premium/owned', async (req, res) => {
   const username = usernameFromReq(req);
   if (!username) return res.status(401).json({ error: 'Not logged in.' });
+
+  // Self-heal any purchase that never got confirmed (broken redirect, missed
+  // webhook, etc.) before answering — this is what makes it safe to just
+  // check back later instead of re-buying.
+  await reconcilePendingCheckouts(username);
+
   const user = await User.findOne({ usernameLower: username.toLowerCase() });
   res.json({ ownedSkins: user ? user.ownedSkins : [] });
 });
@@ -229,7 +261,7 @@ app.post('/api/premium/checkout', async (req, res) => {
       return res.status(409).json({ error: 'You already own this skin.' });
     }
 
-    const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const baseUrl = getBaseUrl(req);
     const creatorCutCents = Math.round(skin.creatorCutEUR * 100);
 
     const session = await stripe.checkout.sessions.create({
@@ -243,6 +275,16 @@ app.post('/api/premium/checkout', async (req, res) => {
       success_url: `${baseUrl}/?purchase=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/?purchase=cancelled`,
     });
+
+    // Recorded BEFORE we even redirect to Stripe — this is the safety net:
+    // if the browser never makes it back and the webhook never arrives
+    // either, reconcilePendingCheckouts() (called from /api/premium/owned,
+    // i.e. every login) will still catch this and grant the skin.
+    try {
+      await PendingCheckout.create({ username, skinId: skin.id, stripeSessionId: session.id });
+    } catch (err) {
+      console.error('Error recording pending checkout:', err); // non-fatal — checkout can still proceed
+    }
 
     res.json({ url: session.url });
   } catch (err) {
@@ -289,7 +331,36 @@ async function grantSkinFromSession(session) {
     if (err.code !== 11000) console.error('Error recording purchase:', err); // 11000 = already recorded by the other path
   }
 
+  await PendingCheckout.deleteOne({ stripeSessionId: session.id }).catch(() => {});
+
   return skin;
+}
+
+const ABANDONED_CHECKOUT_MS = 24 * 60 * 60 * 1000; // stop re-checking (and clean up) checkouts nobody ever finished
+
+// Catches purchases that neither the confirm-on-return call nor the webhook
+// ever resolved — walks this user's still-pending checkouts and asks Stripe
+// directly whether each one actually got paid. Called from /api/premium/owned,
+// so it runs on every login for free.
+async function reconcilePendingCheckouts(username) {
+  if (!stripe) return;
+  const pending = await PendingCheckout.find({ username });
+  if (pending.length === 0) return;
+
+  for (const p of pending) {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(p.stripeSessionId);
+      if (session.payment_status === 'paid') {
+        await grantSkinFromSession(session);
+        console.log(`${username} unlocked premium skin "${p.skinId}" (via login reconciliation)`);
+      } else if (Date.now() - p.createdAt.getTime() > ABANDONED_CHECKOUT_MS) {
+        // never paid, and old enough that it's not coming back — clear it out
+        await PendingCheckout.deleteOne({ _id: p._id });
+      }
+    } catch (err) {
+      console.error(`Error reconciling pending checkout ${p.stripeSessionId}:`, err);
+    }
+  }
 }
 
 // Called by the client the instant it lands back on success_url — verifies
@@ -380,7 +451,7 @@ app.post('/api/creator/onboard', async (req, res) => {
       await user.save();
     }
 
-    const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const baseUrl = getBaseUrl(req);
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
       refresh_url: `${baseUrl}/api/creator/onboard-refresh?token=${encodeURIComponent(req.body.token || '')}`,
@@ -406,7 +477,7 @@ app.get('/api/creator/onboard-refresh', async (req, res) => {
     const user = await User.findOne({ usernameLower: username.toLowerCase() });
     if (!user || !user.stripeAccountId) return res.redirect('/');
 
-    const baseUrl = process.env.APP_BASE_URL || `${req.protocol}://${req.get('host')}`;
+    const baseUrl = getBaseUrl(req);
     const accountLink = await stripe.accountLinks.create({
       account: user.stripeAccountId,
       refresh_url: `${baseUrl}/api/creator/onboard-refresh?token=${encodeURIComponent(req.query.token)}`,

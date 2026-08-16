@@ -284,7 +284,6 @@ creatorLink.addEventListener('click', async () => {
   const sessionId = params.get('session_id');
   const onboarding = params.get('onboarding');
   if (!purchase && !onboarding) return;
-  window.history.replaceState({}, '', window.location.pathname); // tidy the URL either way
 
   // At this point we're back on the room lobby screen (not inside a room
   // yet), so the in-game chat log isn't visible — use the lobby's own line.
@@ -301,10 +300,10 @@ creatorLink.addEventListener('click', async () => {
         lobbyError.style.color = res.ok ? 'var(--accent-green, #7cb342)' : '';
         lobbyError.textContent = res.ok
           ? 'Thanks for your purchase! Check the shop for your new skin.'
-          : (data.error || 'Payment went through, but confirming it failed — contact support.');
+          : (data.error || 'Payment went through, but confirming it failed — it should still catch up automatically next time you log in.');
         if (res.ok) refreshPremiumOwnership();
       } catch (err) {
-        lobbyError.textContent = 'Could not confirm your purchase — contact support if the skin never appears.';
+        lobbyError.textContent = 'Could not confirm your purchase — it should still catch up automatically next time you log in.';
       }
     } else {
       lobbyError.style.color = 'var(--accent-green, #7cb342)';
@@ -318,6 +317,22 @@ creatorLink.addEventListener('click', async () => {
     // (called from enterLobbyAs above) will reflect the real status once it lands.
     lobbyError.style.color = 'var(--accent-green, #7cb342)';
     lobbyError.textContent = 'Stripe onboarding submitted — this can take a moment to finish processing.';
+  }
+
+  // Tidy the URL last, after everything above has actually run — and to a
+  // hardcoded '/' rather than window.location.pathname. That second part
+  // matters: with a trailing slash in APP_BASE_URL, the redirect URL Stripe
+  // sends back ends up with a DOUBLE slash (.../?purchase=...), which some
+  // browsers then parse pathname as "//" — and passing that to replaceState
+  // throws a SecurityError (it gets interpreted as a protocol-relative URL).
+  // That threw BEFORE the confirm call above ever ran, which is what
+  // actually caused a real purchase to never get granted. Wrapped in
+  // try/catch too now as a second layer, since a thrown error here should
+  // never be able to block anything that matters again.
+  try {
+    window.history.replaceState({}, '', '/');
+  } catch (err) {
+    console.error('Could not clean up the URL (harmless):', err);
   }
 })();
 
