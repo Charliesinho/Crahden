@@ -168,11 +168,35 @@ const PREMIUM_SKINS = {
 
 // Looks up the creator's Stripe account for a skin — returns null if they
 // haven't been assigned, haven't onboarded yet, or onboarding isn't done.
+// Confirms (and self-heals) a user's onboarding status directly against
+// Stripe, rather than trusting only whatever the account.updated webhook
+// last reported — that webhook needs its own separate "listen to events on
+// connected accounts" subscription in the Dashboard, which is easy to miss,
+// and this way nothing gets permanently stuck on "not done yet" if it was.
+async function ensureOnboardingStatus(user) {
+  if (!user || !user.stripeAccountId || user.stripeOnboardingComplete || !stripe) {
+    return user ? user.stripeOnboardingComplete : false;
+  }
+  try {
+    const account = await stripe.accounts.retrieve(user.stripeAccountId);
+    const ready = !!(account.charges_enabled && account.payouts_enabled);
+    if (ready !== user.stripeOnboardingComplete) {
+      user.stripeOnboardingComplete = ready;
+      await user.save();
+    }
+    return ready;
+  } catch (err) {
+    console.error('Error checking Stripe account status:', err);
+    return user.stripeOnboardingComplete;
+  }
+}
+
 async function resolveCreatorAccount(skin) {
   if (!skin.creatorUsername) return null;
   const creator = await User.findOne({ usernameLower: skin.creatorUsername.toLowerCase() });
-  if (!creator || !creator.stripeOnboardingComplete || !creator.stripeAccountId) return null;
-  return creator.stripeAccountId;
+  if (!creator || !creator.stripeAccountId) return null;
+  const ready = await ensureOnboardingStatus(creator);
+  return ready ? creator.stripeAccountId : null;
 }
 
 app.get('/api/premium/owned', async (req, res) => {
@@ -302,9 +326,10 @@ app.get('/api/creator/status', async (req, res) => {
   const username = usernameFromReq(req);
   if (!username) return res.status(401).json({ error: 'Not logged in.' });
   const user = await User.findOne({ usernameLower: username.toLowerCase() });
+  const onboardingComplete = await ensureOnboardingStatus(user);
   res.json({
     isCreator: !!(user && user.stripeAccountId),
-    onboardingComplete: !!(user && user.stripeOnboardingComplete),
+    onboardingComplete,
   });
 });
 
