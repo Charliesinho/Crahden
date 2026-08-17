@@ -56,14 +56,14 @@ const CONFIG = {
   },
 
   OUTFITS: {
-    knight: { name: 'Knight', price: 50, currency: 'logs' },
+    knight: { name: 'Knight', price: 200, currency: 'logs' },
     goblin: { name: 'Goblin', price: 500, currency: 'fish' },
     demon: { name: 'Demon', price: 500, currency: 'fish2' },
     hazmat: { name: 'Hazmat', price: 200, currency: 'logs' },
-    mantis: { name: 'Mantis', price: 5, currency: 'hay' },
-    pinker: { name: 'Pinker', price: 300, currency: 'fish2' },
-    phantom: { name: 'Phantom', price: 100, currency: 'fish4' },
-    mummy: { name: 'Mummy', price: 10, currency: 'fish' },
+    mantis: { name: 'Mantis', price: 10, currency: 'hay' },
+    pinker: { name: 'Pinker', price: 1000, currency: 'fish2' },
+    phantom: { name: 'Phantom', price: 1000, currency: 'fish4' },
+    mummy: { name: 'Mummy', price: 500, currency: 'fish3' },
     // Real-money skin — no price/currency (that lives on the server, tied to
     // the actual Stripe Price), just premium:true + what to show for it.
     aqua: { name: 'Aqua', premium: true, priceEUR: 4.50 },
@@ -72,13 +72,13 @@ const CONFIG = {
 
   SHOP_CATALOG: {
     fire: {
-      id: 'fire', name: 'Fire', price: 10, currency: 'logs',
+      id: 'fire', name: 'Fire', price: 500, currency: 'logs',
       x: 195, y: 0.2, width: 110, height: 110,
       spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif',
       bought: false, contributions: {},
     },
     house: {
-      id: 'house', name: 'House', price: 10, currency: 'logs',
+      id: 'house', name: 'House', price: 1000, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/house.gif',
       zIndex: -1, // background decorations render behind the lake(0)/trees(1)/players(2); house is frontmost of this group
@@ -86,28 +86,28 @@ const CONFIG = {
       bought: false, contributions: {},
     },
     lamp: {
-      id: 'lamp', name: 'Lamp', price: 10, currency: 'logs',
+      id: 'lamp', name: 'Lamp', price: 100, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/lamp.gif',
       zIndex: -3,
       bought: false, contributions: {},
     },
     wall: {
-      id: 'wall', name: 'Wall', price: 10, currency: 'logs',
+      id: 'wall', name: 'Wall', price: 200, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/wall.gif',
       zIndex: -4, // behind every other decoration/tree/lake — furthest back
       bought: false, contributions: {},
     },
     farm: {
-      id: 'farm', name: 'Farm', price: 10, currency: 'logs',
+      id: 'farm', name: 'Farm', price: 500, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/farm.gif',
       zIndex: -2, // behind house, in front of wall/lamp
       bought: false, contributions: {},
     },
     platform: {
-      id: 'platform', name: 'Platform', price: 10, currency: 'logs',
+      id: 'platform', name: 'Platform', price: 500, currency: 'logs',
       x: 150, y: 7.2, width: 75, height: 75, // matches: left 30%, bottom 18.8%, width/height 15% of the map
       surfaceOffset: -15, // nudge the walkable top surface up(+)/down(-) if it doesn't line up with the sprite's art
       sprite: 'assets/platform.gif',
@@ -575,7 +575,7 @@ function tryInteract() {
       { level: 1, id: 'fish', weight: 1.0 },
       { level: 20, id: 'fish2', weight: 0.25 },
       { level: 50, id: 'fish3', weight: 0.15 },
-      { level: 100, id: 'fish4', weight: 0.15 },
+      { level: 100, id: 'fish4', weight: 0.05 },
     ];
     const available = tiers.filter(t => lvl >= t.level);
     const weights = available.map(t => t.weight);
