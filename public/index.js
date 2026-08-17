@@ -224,6 +224,9 @@ document.getElementById('logout-link').addEventListener('click', () => {
 // without you doing anything by hand.
 // ------------------------------------------------------------
 const creatorLink = document.getElementById('creator-link');
+const creatorCountryRow = document.getElementById('creator-country-row');
+const creatorCountrySelect = document.getElementById('creator-country-select');
+let creatorAccountExists = false; // set by refreshCreatorLinkText — an existing account already has its country locked in
 
 async function refreshCreatorLinkText() {
   const token = localStorage.getItem('crahdenAuthToken');
@@ -232,6 +235,7 @@ async function refreshCreatorLinkText() {
     const res = await fetch('/api/creator/status', { headers: { 'x-auth-token': token } });
     if (!res.ok) return;
     const data = await res.json();
+    creatorAccountExists = !!data.isCreator;
     if (data.onboardingComplete) creatorLink.textContent = '✅ Creator account connected';
     else if (data.isCreator) creatorLink.textContent = '⏳ Continue creator onboarding';
     else creatorLink.textContent = '🎨 Become a creator';
@@ -240,14 +244,14 @@ async function refreshCreatorLinkText() {
   }
 }
 
-creatorLink.addEventListener('click', async () => {
+async function startCreatorOnboarding(country) {
   const token = localStorage.getItem('crahdenAuthToken');
   if (!token) return;
   try {
     const res = await fetch('/api/creator/onboard', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
+      body: JSON.stringify({ token, country }),
     });
     const data = await res.json();
     if (!res.ok) { lobbyError.textContent = data.error || 'Could not start onboarding.'; return; }
@@ -255,6 +259,21 @@ creatorLink.addEventListener('click', async () => {
   } catch (err) {
     lobbyError.textContent = 'Could not reach the server.';
   }
+}
+
+creatorLink.addEventListener('click', () => {
+  // Country can only be set once, at account creation — Stripe otherwise
+  // defaults it to the platform's own country, which is exactly the bug
+  // this picker fixes. An existing account already has it locked in, so
+  // there's nothing to ask a second time.
+  if (creatorAccountExists) { startCreatorOnboarding(); return; }
+  creatorCountryRow.classList.remove('hidden');
+});
+
+document.getElementById('creator-country-confirm').addEventListener('click', () => {
+  const country = creatorCountrySelect.value;
+  if (!country) { lobbyError.textContent = 'Pick a country first.'; return; }
+  startCreatorOnboarding(country);
 });
 
 // Try to silently restore a session on page load; fall back to the auth screen.
