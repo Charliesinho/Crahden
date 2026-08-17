@@ -436,7 +436,7 @@ app.post('/api/premium/confirm', async (req, res) => {
 const CREATOR_ALLOWLIST = [
   "Aqua",
 ];
-const CREATOR_CONTACT_MESSAGE = 'Please contact plypoode@gmail.com to become a Crahden creator.';
+const CREATOR_CONTACT_MESSAGE = 'Please contact polypoode@gmail.com to become a Crahden creator.';
 
 function isAllowedCreator(username) {
   return CREATOR_ALLOWLIST.some((u) => u.toLowerCase() === username.toLowerCase());
