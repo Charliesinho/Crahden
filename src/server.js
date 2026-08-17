@@ -435,6 +435,7 @@ app.post('/api/premium/confirm', async (req, res) => {
 // ------------------------------------------------------------
 const CREATOR_ALLOWLIST = [
   "Aqua",
+  "Ludistamen"
 ];
 const CREATOR_CONTACT_MESSAGE = 'Please contact polypoode@gmail.com to become a Crahden creator.';
 

@@ -68,6 +68,7 @@ const CONFIG = {
     // the actual Stripe Price), just premium:true + what to show for it.
     aqua: { name: 'Aqua', premium: true, priceEUR: 4.50 },
     cfrosky: { name: 'Cfrosky', premium: true, priceEUR: 4.50 },
+    ludistamen: { name: 'Ludistamen', premium: true, priceEUR: 4.50 },
   },
 
   SHOP_CATALOG: {
