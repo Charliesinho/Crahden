@@ -63,9 +63,11 @@ const CONFIG = {
     mantis: { name: 'Mantis', price: 5, currency: 'hay' },
     pinker: { name: 'Pinker', price: 300, currency: 'fish2' },
     phantom: { name: 'Phantom', price: 100, currency: 'fish4' },
+    mummy: { name: 'Mummy', price: 10, currency: 'fish' },
     // Real-money skin — no price/currency (that lives on the server, tied to
     // the actual Stripe Price), just premium:true + what to show for it.
-    aqua: { name: 'Aqua', premium: true, priceEUR: 2.00 },
+    aqua: { name: 'Aqua', premium: true, priceEUR: 4.50 },
+    cfrosky: { name: 'Cfrosky', premium: true, priceEUR: 4.50 },
   },
 
   SHOP_CATALOG: {
@@ -847,7 +849,7 @@ function renderShopPremium() {
     card.className = 'shop-item';
     card.innerHTML = `
       <img src="${outfitSprite('idle', id)}" class="shop-item-img" alt="${item.name}">
-      <div class="shop-item-name">${item.name} 💎</div>
+      <div class="shop-item-name">${item.name}</div>
       <div class="shop-item-price">€${item.priceEUR.toFixed(2)}</div>
       <button class="btn btn-sm ${owned ? 'btn-disabled' : 'btn-blue'}" ${owned ? 'disabled' : ''}>
         ${owned ? 'Owned' : 'Buy'}
