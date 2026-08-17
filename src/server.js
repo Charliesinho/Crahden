@@ -426,9 +426,9 @@ app.post('/api/premium/confirm', async (req, res) => {
 // Everyone else gets a "contact us" message instead of ever reaching Stripe.
 // ------------------------------------------------------------
 const CREATOR_ALLOWLIST = [
-  // 'SomeArtistUsername',
+  "Aqua",
 ];
-const CREATOR_CONTACT_MESSAGE = 'You need to contact plypoode@gmail.com to become a Crahden creator.';
+const CREATOR_CONTACT_MESSAGE = 'Please contact plypoode@gmail.com to become a Crahden creator.';
 
 function isAllowedCreator(username) {
   return CREATOR_ALLOWLIST.some((u) => u.toLowerCase() === username.toLowerCase());
