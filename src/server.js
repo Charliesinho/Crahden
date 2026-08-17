@@ -204,7 +204,7 @@ const PREMIUM_SKINS = {
     stripePriceId: process.env.STRIPE_PRICE_AQUA_SKIN,
     creatorUsername: process.env.AQUA_CREATOR_USERNAME, // their game username, not a raw Stripe id
   },
-  aqua: {
+  cfrosky: {
     id: 'cfrosky',
     name: 'Cfrosky',
     priceEUR: 4.50,
