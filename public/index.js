@@ -74,7 +74,7 @@ const CONFIG = {
     mantis: { name: 'Mantis', price: 10, currency: 'hay', map: 1 },
     pinker: { name: 'Pinker', price: 1000, currency: 'fish2', map: 2 },
     phantom: { name: 'Phantom', price: 1000, currency: 'fish4', map: 2 },
-    mummy: { name: 'Mummy', price: 500, currency: 'fish3', map: 2 },
+    mummy: { name: 'Mummy', price: 50, currency: 'fish3', map: 2 },
     ludistamen: { name: 'Ludistamen', price: 3, currency: 'casinotoken', map: 2 },
     beast: { name: 'Beast', price: 1, currency: 'goldenpyramid', map: 2 },
     // Real-money skin — no price/currency (that lives on the server, tied to
