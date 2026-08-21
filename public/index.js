@@ -69,29 +69,29 @@ const CONFIG = {
   OUTFITS: {
     knight: { name: 'Knight', price: 200, currency: 'logs', map: 1 },
     goblin: { name: 'Goblin', price: 500, currency: 'fish', map: 1 },
-    demon: { name: 'Demon', price: 500, currency: 'fish2', map: 1 },
+    demon: { name: 'Demon', price: 500, currency: 'fish2', map: 2 },
     hazmat: { name: 'Hazmat', price: 200, currency: 'logs', map: 1 },
-    mantis: { name: 'Mantis', price: 10, currency: 'hay', map: 2 },
+    mantis: { name: 'Mantis', price: 10, currency: 'hay', map: 1 },
     pinker: { name: 'Pinker', price: 1000, currency: 'fish2', map: 2 },
     phantom: { name: 'Phantom', price: 1000, currency: 'fish4', map: 2 },
-    // Mummy is map-2 only — it's also the skin the destroyer monster checks for.
     mummy: { name: 'Mummy', price: 500, currency: 'fish3', map: 2 },
+    ludistamen: { name: 'Ludistamen', price: 3, currency: 'casinotoken', map: 2 },
+    beast: { name: 'Beast', price: 1, currency: 'goldenpyramid', map: 2 },
     // Real-money skin — no price/currency (that lives on the server, tied to
     // the actual Stripe Price), just premium:true + what to show for it.
     aqua: { name: 'Aqua', premium: true, priceEUR: 4.50 },
     cfrosky: { name: 'Cfrosky', premium: true, priceEUR: 4.50 },
-    ludistamen: { name: 'Ludistamen', premium: true, priceEUR: 4.50 },
   },
 
   SHOP_CATALOG: {
     fire: {
-      id: 'fire', name: 'Fire', price: 500, currency: 'logs',
+      id: 'fire', name: 'Fire', price: 100, currency: 'logs',
       x: 195, y: 0.2, width: 110, height: 110,
       spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif',
       bought: false, contributions: {},
     },
     house: {
-      id: 'house', name: 'House', price: 1000, currency: 'logs',
+      id: 'house', name: 'House', price: 500, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/house.gif',
       zIndex: -1, // background decorations render behind the lake(0)/trees(1)/players(2); house is frontmost of this group
@@ -99,28 +99,28 @@ const CONFIG = {
       bought: false, contributions: {},
     },
     lamp: {
-      id: 'lamp', name: 'Lamp', price: 100, currency: 'logs',
+      id: 'lamp', name: 'Lamp', price: 200, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/lamp.gif',
       zIndex: -3,
       bought: false, contributions: {},
     },
     wall: {
-      id: 'wall', name: 'Wall', price: 200, currency: 'logs',
+      id: 'wall', name: 'Wall', price: 100, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/wall.gif',
       zIndex: -4, // behind every other decoration/tree/lake — furthest back
       bought: false, contributions: {},
     },
     farm: {
-      id: 'farm', name: 'Farm', price: 500, currency: 'logs',
+      id: 'farm', name: 'Farm', price: 1000, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/farm.gif',
       zIndex: -2, // behind house, in front of wall/lamp
       bought: false, contributions: {},
     },
     platform: {
-      id: 'platform', name: 'Platform', price: 500, currency: 'logs',
+      id: 'platform', name: 'Platform', price: 300, currency: 'logs',
       x: 150, y: 7.2, width: 75, height: 75, // matches: left 30%, bottom 18.8%, width/height 15% of the map
       surfaceOffset: -15, // nudge the walkable top surface up(+)/down(-) if it doesn't line up with the sprite's art
       sprite: 'assets/platform.gif',
@@ -133,14 +133,18 @@ const CONFIG = {
   // fallback used before the server's roomJoined/mapChanged data arrives.
   SHOP_CATALOG_MAP2: {
     fireOut: {
-      id: 'fireOut', name: 'Fire', price: 500, currency: 'logs',
+      id: 'fireOut', name: 'Fire', price: 200, currency: 'logs',
+      // Full-map overlay (like the map-1 background decorations below) rather
+      // than a small fixed-position icon — matches the flame art covering
+      // the whole scene on this map.
       x: 0, y: -86.8, width: 500, height: 500,
       zIndex: 1,
       spriteOn: 'assets/fireOnOut.gif', spriteOff: 'assets/fireOffOut.gif',
       bought: false, contributions: {},
     },
     casino: {
-      id: 'casino', name: 'Casino', price: 2000, currency: 'logs',
+      id: 'casino', name: 'Casino', price: 1000, currency: 'logs',
+      // Same full-map coverage trick as house/lamp/wall/farm on map 1.
       x: 0, y: -86.8, width: 500, height: 500,
       sprite: 'assets/casino.gif',
       zIndex: -1,
@@ -169,9 +173,9 @@ const CONFIG = {
   // Casino minigame — clicking a casinotoken in the inventory opens a
   // 3-reel slot machine. goldenpyramid is always one of the possible
   // symbols; the rest are drawn from regular gatherable items.
-  CASINO_TOKEN_FISH_CHANCE: 0.005, // 0.5% per fishing attempt, once the casino is built
+  CASINO_TOKEN_FISH_CHANCE: 0.01, // 1% per fishing attempt, once the casino is built
   CASINO_SYMBOLS: ['logs', 'fish', 'fish2', 'fish3', 'fish4', 'hay', 'goldenpyramid'],
-  CASINO_WIN_AMOUNT: 100,
+  CASINO_WIN_AMOUNT: 500,
   CASINO_SPIN_MS: 1100,
 
   // Market — player-to-player trading. Same item set the casino draws from,
