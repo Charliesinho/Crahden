@@ -659,13 +659,13 @@ function makePlayer(username) {
 // ------------------------------------------------------------
 const SHOP_CATALOG = {
   fire: {
-    id: 'fire', name: 'Fire', price: 100, currency: 'logs',
+    id: 'fire', name: 'Fire', price: 1, currency: 'logs',
     x: 195, y: 0.2, width: 110, height: 110,
     spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif',
     bought: false, contributions: {},
   },
   house: {
-    id: 'house', name: 'House', price: 500, currency: 'logs',
+    id: 'house', name: 'House', price: 1, currency: 'logs',
     x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
     sprite: 'assets/house.gif',
     zIndex: -1, // background decorations render behind the lake(0)/trees(1)/players(2); house is frontmost of this group
@@ -673,28 +673,28 @@ const SHOP_CATALOG = {
     bought: false, contributions: {},
   },
   lamp: {
-    id: 'lamp', name: 'Lamp', price: 200, currency: 'logs',
+    id: 'lamp', name: 'Lamp', price: 1, currency: 'logs',
     x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
     sprite: 'assets/lamp.gif',
     zIndex: -3,
     bought: false, contributions: {},
   },
   wall: {
-    id: 'wall', name: 'Wall', price: 100, currency: 'logs',
+    id: 'wall', name: 'Wall', price: 1, currency: 'logs',
     x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
     sprite: 'assets/wall.gif',
     zIndex: -4, // behind every other decoration/tree/lake — furthest back
     bought: false, contributions: {},
   },
   farm: {
-    id: 'farm', name: 'Farm', price: 1000, currency: 'logs',
+    id: 'farm', name: 'Farm', price: 1, currency: 'logs',
     x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
     sprite: 'assets/farm.gif',
     zIndex: -2, // behind house, in front of wall/lamp
     bought: false, contributions: {},
   },
   platform: {
-    id: 'platform', name: 'Platform', price: 300, currency: 'logs',
+    id: 'platform', name: 'Platform', price: 1, currency: 'logs',
     x: 150, y: 7.2, width: 75, height: 75, // matches: left 30%, bottom 18.8%, width/height 15% of the map
     surfaceOffset: -15, // nudge the walkable top surface up(+)/down(-) if it doesn't line up with the sprite's art
     sprite: 'assets/platform.gif',
@@ -711,7 +711,7 @@ const SHOP_CATALOG = {
 // ------------------------------------------------------------
 const SHOP_CATALOG_MAP2 = {
   fireOut: {
-    id: 'fireOut', name: 'Fire', price: 200, currency: 'logs',
+    id: 'fireOut', name: 'Fire', price: 1, currency: 'logs',
     // Full-map overlay (like the map-1 background decorations below) rather
     // than a small fixed-position icon — matches the flame art covering
     // the whole scene on this map.
@@ -721,7 +721,7 @@ const SHOP_CATALOG_MAP2 = {
     bought: false, contributions: {},
   },
   casino: {
-    id: 'casino', name: 'Casino', price: 1000, currency: 'logs',
+    id: 'casino', name: 'Casino', price: 1, currency: 'logs',
     // Same full-map coverage trick as house/lamp/wall/farm on map 1.
     x: 0, y: -86.8, width: 500, height: 500,
     sprite: 'assets/casino.gif',
