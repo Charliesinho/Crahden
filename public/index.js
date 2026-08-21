@@ -34,11 +34,13 @@ const CONFIG = {
 
   SPRITES: {
     background: 'assets/background.gif',
+    backgroundOut: 'assets/backgroundOut.gif',
     idle: 'assets/idle.gif',
     walk: 'assets/walk.gif',
     jump: 'assets/jump.gif',
     tree: 'assets/tree.png',
     lake: 'assets/lake.gif',
+    lakeOut: 'assets/lakeOut.gif',
     fish: 'assets/fish.png',
     fish2: 'assets/fish2.png',
     fish3: 'assets/fish3.png',
@@ -46,24 +48,34 @@ const CONFIG = {
     logs: 'assets/logs.png',
     fireOn: 'assets/fireOn.gif',
     fireOff: 'assets/fireOff.gif',
+    fireOnOut: 'assets/fireOnOut.gif',
+    fireOffOut: 'assets/fireOffOut.gif',
     house: 'assets/house.gif',
     house2: 'assets/house2.gif',
     platform: 'assets/platform.gif',
+    casino: 'assets/casino.gif',
     lava: 'assets/lava.gif',
     dead: 'assets/dead.gif',
     seed: 'assets/seed.png',
     hay: 'assets/hay.png',
+    escapemap: 'assets/escapemap.png',
+    casinotoken: 'assets/casinotoken.png',
+    goldenpyramid: 'assets/goldenpyramid.png',
   },
 
+  // Which map (1 or 2) each regular skin belongs to — the shop's Skins tab
+  // only shows whichever set matches the room's current map. Real-money
+  // (premium) skins are unaffected by this and always show.
   OUTFITS: {
-    knight: { name: 'Knight', price: 200, currency: 'logs' },
-    goblin: { name: 'Goblin', price: 500, currency: 'fish' },
-    demon: { name: 'Demon', price: 500, currency: 'fish2' },
-    hazmat: { name: 'Hazmat', price: 200, currency: 'logs' },
-    mantis: { name: 'Mantis', price: 10, currency: 'hay' },
-    pinker: { name: 'Pinker', price: 1000, currency: 'fish2' },
-    phantom: { name: 'Phantom', price: 1000, currency: 'fish4' },
-    mummy: { name: 'Mummy', price: 500, currency: 'fish3' },
+    knight: { name: 'Knight', price: 200, currency: 'logs', map: 1 },
+    goblin: { name: 'Goblin', price: 500, currency: 'fish', map: 1 },
+    demon: { name: 'Demon', price: 500, currency: 'fish2', map: 1 },
+    hazmat: { name: 'Hazmat', price: 200, currency: 'logs', map: 1 },
+    mantis: { name: 'Mantis', price: 10, currency: 'hay', map: 2 },
+    pinker: { name: 'Pinker', price: 1000, currency: 'fish2', map: 2 },
+    phantom: { name: 'Phantom', price: 1000, currency: 'fish4', map: 2 },
+    // Mummy is map-2 only — it's also the skin the destroyer monster checks for.
+    mummy: { name: 'Mummy', price: 500, currency: 'fish3', map: 2 },
     // Real-money skin — no price/currency (that lives on the server, tied to
     // the actual Stripe Price), just premium:true + what to show for it.
     aqua: { name: 'Aqua', premium: true, priceEUR: 4.50 },
@@ -117,13 +129,95 @@ const CONFIG = {
     },
   },
 
-  MONSTER_SPRITES: { flodder: 'assets/flodder.gif', fakeflodder: 'assets/fakeflodder.gif', worren: 'assets/worren.gif' },
+  // Map 2's shop catalog — same shape as SHOP_CATALOG above, just the
+  // fallback used before the server's roomJoined/mapChanged data arrives.
+  SHOP_CATALOG_MAP2: {
+    fireOut: {
+      id: 'fireOut', name: 'Fire', price: 500, currency: 'logs',
+      x: 0, y: -86.8, width: 500, height: 500,
+      zIndex: 1,
+      spriteOn: 'assets/fireOnOut.gif', spriteOff: 'assets/fireOffOut.gif',
+      bought: false, contributions: {},
+    },
+    casino: {
+      id: 'casino', name: 'Casino', price: 2000, currency: 'logs',
+      x: 0, y: -86.8, width: 500, height: 500,
+      sprite: 'assets/casino.gif',
+      zIndex: -1,
+      bought: false, contributions: {},
+    },
+  },
+
+  // lakeOut's on-screen box (percent of #map) — it's automatic on map 2,
+  // not a purchasable item, so its geometry lives here rather than in the
+  // shop catalog. LAKE (map 1) keeps its own geometry, defined above.
+  LAKE_OUT: { leftPct: 10, bottomPct: 17.36, widthPct: 28, heightPct: 27 },
+
+  MONSTER_SPRITES: {
+    flodder: 'assets/flodder.gif',
+    fakeflodder: 'assets/fakeflodder.gif',
+    worren: 'assets/worren.gif',
+    goobler: 'assets/goobler.gif',
+    destroyer: 'assets/destroyer.gif',
+  },
   MONSTER_SLIDE_DURATION: 1000,
   MONSTER_STAY_MS: 20000,
 
   LAVA_STAY_MS: 15000,
   LAVA_FADE_MS: 800,
+
+  // Casino minigame — clicking a casinotoken in the inventory opens a
+  // 3-reel slot machine. goldenpyramid is always one of the possible
+  // symbols; the rest are drawn from regular gatherable items.
+  CASINO_TOKEN_FISH_CHANCE: 0.005, // 0.5% per fishing attempt, once the casino is built
+  CASINO_SYMBOLS: ['logs', 'fish', 'fish2', 'fish3', 'fish4', 'hay', 'goldenpyramid'],
+  CASINO_WIN_AMOUNT: 100,
+  CASINO_SPIN_MS: 1100,
+
+  // Market — player-to-player trading. Same item set the casino draws from,
+  // plus seed/hay (anything a player can actually hold).
+  MARKET_ITEM_IDS: ['logs', 'fish', 'fish2', 'fish3', 'fish4', 'hay', 'seed', 'casinotoken', 'goldenpyramid'],
+  MARKET_ITEM_LABELS: {
+    logs: 'Logs', fish: 'Fish', fish2: 'Fish II', fish3: 'Fish III', fish4: 'Fish IV',
+    hay: 'Hay', seed: 'Seed', casinotoken: 'Casino Token', goldenpyramid: 'Golden Pyramid',
+  },
+  MARKET_CANCEL_FEE: 50, // logs, paid to retrieve your own listing early
+
+  SOUNDS: {
+    build: 'assets/sounds/build.wav',
+    click: 'assets/sounds/click.wav',
+    death: 'assets/sounds/death.wav',
+    event: 'assets/sounds/event.wav',
+    pick1: 'assets/sounds/pick1.wav',
+    pick2: 'assets/sounds/pick2.wav',
+    pick3: 'assets/sounds/pick3.wav',
+    pick4: 'assets/sounds/pick4.wav',
+    pickrare: 'assets/sounds/pickrare.wav',
+    purchase: 'assets/sounds/purchase.wav',
+  },
 };
+
+// ============================================================
+// SOUNDS — local-only (each client plays its own; nothing goes over the
+// socket for this). playRandomPick() is used for "gather" actions (E on a
+// tree/lake) and for clicking an inventory item to use it; playSound('pickrare')
+// marks a notably rare outcome (a seed drop, a casino token, a casino win).
+// ============================================================
+function playSound(name) {
+  const src = CONFIG.SOUNDS[name];
+  if (!src) return;
+  try {
+    const audio = new Audio(src);
+    audio.volume = name === 'click' ? 0.35 : 0.55;
+    audio.play().catch(() => {}); // browsers can block autoplay before any user gesture — harmless if so
+  } catch (err) {
+    // missing/broken audio file — never let a sound failure break gameplay
+  }
+}
+function playRandomPick() {
+  const picks = ['pick1', 'pick2', 'pick3', 'pick4'];
+  playSound(picks[Math.floor(Math.random() * picks.length)]);
+}
 
 function pct(value) { return `${(value / CONFIG.MAP_SIZE) * 100}%`; }
 function outfitSprite(state, outfitId) { return `assets/${state}${outfitId}.gif`; }
@@ -142,6 +236,8 @@ const remoteEls = {};
 
 let clientShop = {};
 let clientFireOn = false;
+let clientMapLevel = 1;
+let clientMarket = {};
 const mapItemsEls = {};
 
 const localPlayer = { x: 0, y: 0, vy: 0, onGround: true, facing: 'right', state: 'idle', username: '', outfit: null };
@@ -323,7 +419,7 @@ document.getElementById('creator-country-confirm').addEventListener('click', () 
         lobbyError.textContent = res.ok
           ? 'Thanks for your purchase! Check the shop for your new skin.'
           : (data.error || 'Payment went through, but confirming it failed — it should still catch up automatically next time you log in.');
-        if (res.ok) refreshPremiumOwnership();
+        if (res.ok) { playSound('purchase'); refreshPremiumOwnership(); }
       } catch (err) {
         lobbyError.textContent = 'Could not confirm your purchase — it should still catch up automatically next time you log in.';
       }
@@ -371,7 +467,7 @@ document.getElementById('join-room-btn').addEventListener('click', () => {
 
 socket.on('roomError', (message) => { lobbyError.textContent = message; });
 
-socket.on('roomJoined', ({ code, id, players, trees: initialTrees, purchasableItems, fireOn }) => {
+socket.on('roomJoined', ({ code, id, players, trees: initialTrees, purchasableItems, fireOn, mapLevel, marketListings }) => {
   roomCode = code; myId = id;
   lobbyEl.classList.add('hidden'); appEl.classList.remove('hidden');
   document.getElementById('room-code-badge').textContent = `Room: ${code}`;
@@ -389,14 +485,88 @@ socket.on('roomJoined', ({ code, id, players, trees: initialTrees, purchasableIt
   trees = initialTrees || [];
   renderTrees();
 
-  clientShop = purchasableItems || JSON.parse(JSON.stringify(CONFIG.SHOP_CATALOG));
+  clientMapLevel = mapLevel || 1;
+  const fallbackCatalog = clientMapLevel === 2 ? CONFIG.SHOP_CATALOG_MAP2 : CONFIG.SHOP_CATALOG;
+  clientShop = purchasableItems || JSON.parse(JSON.stringify(fallbackCatalog));
   clientFireOn = !!fireOn;
   Object.entries(clientShop).forEach(([k, v]) => {
     clientShopTotals[k] = Object.values(v.contributions || {}).reduce((a,b)=>a+(b||0),0);
   });
 
+  applyMapTheme(clientMapLevel);
   renderShop();
   renderMapItems();
+
+  clientMarket = marketListings || {};
+  renderMarket();
+});
+
+// Switches the map's background, the lake's sprite, and the page's overall
+// palette to match. Called on initial join (if already on map 2, e.g.
+// rejoining an in-progress room) and again the moment the room advances.
+function applyMapTheme(mapLevel) {
+  const isMap2 = mapLevel === 2;
+  mapEl.style.backgroundImage = `url(${isMap2 ? CONFIG.SPRITES.backgroundOut : CONFIG.SPRITES.background})`;
+  document.body.classList.toggle('map2-theme', isMap2);
+  const lakeEl = document.querySelector('.lake');
+  if (lakeEl) {
+    if (isMap2) {
+      const lo = CONFIG.LAKE_OUT;
+      lakeEl.style.left = `${lo.leftPct}%`;
+      lakeEl.style.bottom = `${lo.bottomPct}%`;
+      lakeEl.style.width = `${lo.widthPct}%`;
+      lakeEl.style.height = `${lo.heightPct}%`;
+      lakeEl.style.backgroundImage = `url(${CONFIG.SPRITES.lakeOut})`;
+    } else {
+      lakeEl.style.left = pct(CONFIG.LAKE.x);
+      lakeEl.style.bottom = pct(CONFIG.GROUND_HEIGHT);
+      lakeEl.style.width = pct(CONFIG.LAKE.width);
+      lakeEl.style.height = pct(CONFIG.LAKE.height);
+      lakeEl.style.backgroundImage = `url(${CONFIG.SPRITES.lake})`;
+    }
+  }
+}
+
+// The escape map item has appeared in the shop (every map-1 structure is
+// built) — just fold it into local state and re-render; the server's own
+// sysMsg already announced it in chat.
+socket.on('escapeMapUnlocked', ({ item }) => {
+  clientShop[item.id] = item;
+  clientShopTotals[item.id] = 0;
+  playSound('build');
+  renderShop();
+});
+
+// The room has advanced to map 2 — brand new shop catalog, palette, and
+// (from here on) monster pool. lakeOut is automatic, same as the original
+// lake, so nothing needs buying for it to show up.
+socket.on('mapChanged', ({ mapLevel, purchasableItems, fireOn }) => {
+  clientMapLevel = mapLevel;
+  clientShop = purchasableItems || JSON.parse(JSON.stringify(CONFIG.SHOP_CATALOG_MAP2));
+  clientFireOn = !!fireOn;
+  clientShopTotals = {};
+  Object.entries(clientShop).forEach(([k, v]) => {
+    clientShopTotals[k] = Object.values(v.contributions || {}).reduce((a,b)=>a+(b||0),0);
+  });
+
+  applyMapTheme(mapLevel);
+  playSound('build');
+  renderShop();
+  renderMapItems();
+  // The old map's skins no longer apply once contributions/equip state
+  // carries over — if the equipped outfit isn't valid for the new map,
+  // just unequip it rather than leave an invalid skin showing.
+  if (equippedOutfit) {
+    const outfit = CONFIG.OUTFITS[equippedOutfit];
+    if (outfit && (outfit.map || 1) !== mapLevel && !outfit.premium) {
+      equippedOutfit = null;
+      localPlayer.outfit = null;
+      if (localEl) updatePlayerEl(localEl, localPlayer);
+      renderWardrobe();
+    }
+  }
+  // System chat message for the transition itself already comes from the
+  // server (sysMsg in advanceRoomToMap2), so nothing else to announce here.
 });
 
 document.getElementById('room-code-badge').addEventListener('click', () => {
@@ -432,15 +602,38 @@ bindTouchButton('btn-right', 'ArrowRight');
 bindTouchButton('btn-jump', 'ArrowUp');
 document.getElementById('btn-interact').addEventListener('pointerdown', (e) => { e.preventDefault(); if (!controlsLocked()) tryInteract(); });
 
-document.querySelectorAll('.tab-icon-btn').forEach((btn) => {
+// Only real tab buttons switch panes — the wiki button shares the same
+// icon styling (.tab-icon-btn) but has no data-tab, so it's excluded here
+// and wired separately below to open a modal instead.
+document.querySelectorAll('.tab-icon-btn[data-tab]').forEach((btn) => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-icon-btn').forEach((b) => b.classList.remove('active'));
+    playSound('click');
+    document.querySelectorAll('.tab-icon-btn[data-tab]').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     const target = btn.dataset.tab;
     document.querySelectorAll('.tab-pane').forEach((pane) => {
       pane.classList.toggle('active', pane.dataset.pane === target);
     });
   });
+});
+
+const wikiOverlay = document.getElementById('wiki-overlay');
+document.getElementById('wiki-btn')?.addEventListener('click', () => {
+  playSound('click');
+  wikiOverlay.classList.remove('hidden');
+});
+document.getElementById('wiki-close-btn')?.addEventListener('click', () => {
+  playSound('click');
+  wikiOverlay.classList.add('hidden');
+});
+// Click on the dark backdrop (not the modal itself) also closes it.
+wikiOverlay?.addEventListener('click', (e) => {
+  if (e.target === wikiOverlay) wikiOverlay.classList.add('hidden');
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && wikiOverlay && !wikiOverlay.classList.contains('hidden')) {
+    wikiOverlay.classList.add('hidden');
+  }
 });
 
 function createPlayerEl(username) {
@@ -591,6 +784,16 @@ function tryInteract() {
     addItem(chosen, 1);
     addXp('fishing', CONFIG.XP_PER_ACTION);
     showFloatingIcon(localEl, CONFIG.SPRITES[chosen] || CONFIG.SPRITES.fish, '');
+    playRandomPick();
+
+    // Casino token — only fishable once the casino's been built on map 2.
+    if (clientMapLevel === 2 && clientShop.casino && clientShop.casino.bought) {
+      if (Math.random() < CONFIG.CASINO_TOKEN_FISH_CHANCE) {
+        addItem('casinotoken', 1);
+        showFloatingIcon(localEl, CONFIG.SPRITES.casinotoken, 'Token!');
+        playSound('pickrare');
+      }
+    }
     return;
   }
 
@@ -601,12 +804,14 @@ function tryInteract() {
       addItem('logs', 1);
       addXp('woodcutting', CONFIG.XP_PER_ACTION);
       showFloatingIcon(localEl, CONFIG.SPRITES.logs, '');
+      playRandomPick();
 
       // Rare bonus drop, once woodcutting is high enough — doesn't replace the log.
       const wcLevel = skills.woodcutting.level || 1;
       if (wcLevel >= CONFIG.SEED_DROP_LEVEL && Math.random() < CONFIG.SEED_DROP_CHANCE) {
         addItem('seed', 1);
         showFloatingIcon(localEl, CONFIG.SPRITES.seed, 'Seed!');
+        playSound('pickrare');
       }
 
       socket.emit('chopTree', { treeId: t.id });
@@ -640,6 +845,7 @@ function plantSeed() {
 
   inventory.seed -= 1;
   renderInventory();
+  playRandomPick();
   if (localEl) showFloatingIcon(localEl, CONFIG.SPRITES.seed, 'Planted');
   appendChatLog('System', 'You planted a seed. Check back in a minute.');
 
@@ -650,6 +856,92 @@ function plantSeed() {
     if (localEl) showFloatingIcon(localEl, CONFIG.SPRITES.hay, '+1');
     appendChatLog('System', 'Your farm produced hay!');
   }, CONFIG.FARM_GROW_MS);
+}
+
+// ============================================================
+// CASINO MINIGAME — clicking a casinotoken in the inventory opens a 3-reel
+// slot machine. Each reel spins independently and stops on a symbol drawn
+// from CONFIG.CASINO_SYMBOLS (goldenpyramid is always in that pool); if all
+// three land on the same symbol, the player wins 100 of it.
+// ============================================================
+function openCasinoMinigame() {
+  if ((inventory.casinotoken || 0) <= 0) return;
+  if (document.getElementById('casino-overlay')) return; // already open
+
+  playRandomPick(); // "using" the token to open the machine
+
+  const overlay = document.createElement('div');
+  overlay.id = 'casino-overlay';
+  overlay.className = 'casino-overlay';
+  overlay.innerHTML = `
+    <div class="casino-modal">
+      <h3>🎰 Casino</h3>
+      <div class="casino-reels">
+        <div class="casino-reel" data-reel="0"><img class="casino-symbol"></div>
+        <div class="casino-reel" data-reel="1"><img class="casino-symbol"></div>
+        <div class="casino-reel" data-reel="2"><img class="casino-symbol"></div>
+      </div>
+      <p class="casino-tokens">Tokens: <span id="casino-token-count">${inventory.casinotoken || 0}</span></p>
+      <p class="casino-result"></p>
+      <div class="casino-buttons">
+        <button class="btn btn-sm btn-yellow" id="casino-spin-btn">Spin (1 token)</button>
+        <button class="btn btn-sm btn-red" id="casino-close-btn">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const symbolEls = overlay.querySelectorAll('.casino-symbol');
+  const randomSymbol = () => CONFIG.CASINO_SYMBOLS[Math.floor(Math.random() * CONFIG.CASINO_SYMBOLS.length)];
+  symbolEls.forEach((img) => { img.src = CONFIG.SPRITES[randomSymbol()] || CONFIG.SPRITES.goldenpyramid; });
+
+  let spinning = false;
+  function spin() {
+    if (spinning) return;
+    if ((inventory.casinotoken || 0) <= 0) {
+      overlay.querySelector('.casino-result').textContent = 'No tokens left.';
+      return;
+    }
+    spinning = true;
+    inventory.casinotoken -= 1;
+    renderInventory();
+    overlay.querySelector('#casino-token-count').textContent = inventory.casinotoken || 0;
+    overlay.querySelector('.casino-result').textContent = '';
+    playSound('click');
+
+    // Decide the outcome up front; each reel just flickers random symbols
+    // for a staggered duration and then lands on its predetermined result.
+    const outcome = [randomSymbol(), randomSymbol(), randomSymbol()];
+    symbolEls.forEach((img, i) => {
+      const flicker = setInterval(() => { img.src = CONFIG.SPRITES[randomSymbol()] || CONFIG.SPRITES.goldenpyramid; }, 80);
+      setTimeout(() => {
+        clearInterval(flicker);
+        img.src = CONFIG.SPRITES[outcome[i]] || CONFIG.SPRITES.goldenpyramid;
+        img.classList.add('stopped');
+        setTimeout(() => img.classList.remove('stopped'), 200);
+
+        if (i === symbolEls.length - 1) {
+          spinning = false;
+          const won = outcome[0] === outcome[1] && outcome[1] === outcome[2];
+          if (won) {
+            addItem(outcome[0], CONFIG.CASINO_WIN_AMOUNT);
+            overlay.querySelector('.casino-result').textContent = `🎉 Jackpot! +${CONFIG.CASINO_WIN_AMOUNT} ${outcome[0]}`;
+            overlay.querySelector('.casino-result').style.color = 'var(--accent-green, #7cb342)';
+            playSound('pickrare');
+          } else {
+            overlay.querySelector('.casino-result').textContent = 'No match — try again!';
+            overlay.querySelector('.casino-result').style.color = '';
+          }
+        }
+      }, CONFIG.CASINO_SPIN_MS + i * 300);
+    });
+  }
+
+  overlay.querySelector('#casino-spin-btn').addEventListener('click', spin);
+  overlay.querySelector('#casino-close-btn').addEventListener('click', () => {
+    playSound('click');
+    overlay.remove();
+  });
 }
 
 function showFloatingBubble(playerEl, innerHTML) {
@@ -674,7 +966,17 @@ document.querySelectorAll('.emoji-btn').forEach((btn) => {
 });
 
 const inventory = {};
-const ITEM_ICONS = { logs: CONFIG.SPRITES.logs, fish: CONFIG.SPRITES.fish, fish2: CONFIG.SPRITES.fish2, fish3: CONFIG.SPRITES.fish3 };
+const ITEM_ICONS = {
+  logs: CONFIG.SPRITES.logs,
+  fish: CONFIG.SPRITES.fish,
+  fish2: CONFIG.SPRITES.fish2,
+  fish3: CONFIG.SPRITES.fish3,
+  fish4: CONFIG.SPRITES.fish4,
+  hay: CONFIG.SPRITES.hay,
+  seed: CONFIG.SPRITES.seed,
+  casinotoken: CONFIG.SPRITES.casinotoken,
+  goldenpyramid: CONFIG.SPRITES.goldenpyramid,
+};
 
 // Shop items can price themselves in ANY inventory item id (not just logs/fish) —
 // this renders whatever icon that item actually uses, falling back to its name
@@ -706,6 +1008,10 @@ function renderInventory() {
         slot.style.cursor = 'pointer';
         slot.title = 'Click to plant on the farm';
         slot.addEventListener('click', plantSeed);
+      } else if (itemId === 'casinotoken') {
+        slot.style.cursor = 'pointer';
+        slot.title = 'Click to play the casino';
+        slot.addEventListener('click', openCasinoMinigame);
       }
     }
     grid.appendChild(slot);
@@ -744,6 +1050,7 @@ function buyOutfit(id) {
   if (have < item.price) return;
   inventory[item.currency] -= item.price;
   wardrobe.add(id);
+  playSound('purchase');
   renderInventory();
   renderShop();
 }
@@ -811,7 +1118,7 @@ function renderShopSkins() {
   if (!container) return;
   container.innerHTML = '';
 
-  const entries = Object.entries(CONFIG.OUTFITS).filter(([, item]) => !item.premium);
+  const entries = Object.entries(CONFIG.OUTFITS).filter(([, item]) => !item.premium && (item.map || 1) === clientMapLevel);
   entries.forEach(([id, item]) => {
     const owned = wardrobe.has(id);
     const have = inventory[item.currency] || 0;
@@ -890,7 +1197,7 @@ function renderShopStructures() {
       btn100.addEventListener('click', () => tryContribute(id, 100));
       btnContainer.appendChild(btn10);
       // btnContainer.appendChild(btn100);
-    } else if (id === 'fire') {
+    } else if (id === 'fire' || id === 'fireOut') {
       const toggleBtn = document.createElement('button');
       toggleBtn.className = 'btn btn-sm btn-blue';
       toggleBtn.textContent = clientFireOn ? 'Turn Off' : 'Turn On';
@@ -905,6 +1212,7 @@ function renderShopStructures() {
 
 document.querySelectorAll('.shop-subtab-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
+    playSound('click');
     document.querySelectorAll('.shop-subtab-btn').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     const target = btn.dataset.shopTab;
@@ -985,7 +1293,7 @@ function renderMapItems() {
       mapEl.appendChild(el);
       mapItemsEls[id] = el;
     }
-    if (id === 'fire') {
+    if (id === 'fire' || id === 'fireOut') {
       el.style.backgroundImage = `url(${clientFireOn ? (item.spriteOn || CONFIG.SPRITES.fireOn) : (item.spriteOff || CONFIG.SPRITES.fireOff)})`;
     } else {
       el.style.backgroundImage = `url(${item.sprite || item.spriteOn || CONFIG.SPRITES[id] || CONFIG.SPRITES.house})`;
@@ -1029,6 +1337,7 @@ function showLava(duration) {
 }
 
 socket.on('lavaSpawn', ({ duration }) => {
+  playSound('event');
   showLava(duration || CONFIG.LAVA_STAY_MS);
   // "The floor is turning to lava!" arrives as its own system chat message
   // from the server, so nothing else needed here.
@@ -1040,6 +1349,28 @@ let movedThisFrame = false;
 // `surfaceOffset` on the item lets you nudge that surface up/down slightly
 // without touching the collision math, in case it doesn't line up exactly
 // with where the sprite's art visually ends.
+// lakeOut (map 2's lake) doubles as a platform players can climb onto —
+// two steps: a wider/lower ledge across most of the lake, and a
+// narrower/higher one in the middle, so you can stand on either the
+// middle or the very top. In CONFIG.MAP_SIZE units, derived from
+// CONFIG.LAKE_OUT's on-screen percentages. Tune the split here if it
+// doesn't line up with the actual art.
+function lakeOutSteps() {
+  const lo = CONFIG.LAKE_OUT;
+  const x = (lo.leftPct / 100) * CONFIG.MAP_SIZE;
+  const width = (lo.widthPct / 100) * CONFIG.MAP_SIZE;
+  const height = (lo.heightPct / 100) * CONFIG.MAP_SIZE;
+  // Pulled in from the box edges and lowered from the previous version —
+  // the crown structure in the art doesn't fill the full box, and the
+  // old top step (100% of box height) had the player floating well above
+  // the actual stonework. These are still an estimate off a screenshot,
+  // not exact pixels — nudge the 0.xx multipliers if it's still off.
+  return [
+    { x: x + width * 0.1, width: width * 0.8, top: height * 0.35 },  // middle ledge
+    { x: x + width * 0.3, width: width * 0.4, top: height * 0.62 },  // top, centered
+  ];
+}
+
 function platformTopAt(x) {
   let top = null;
   Object.values(clientShop).forEach((item) => {
@@ -1051,6 +1382,13 @@ function platformTopAt(x) {
       if (top === null || t > top) top = t;
     }
   });
+  if (clientMapLevel === 2) {
+    lakeOutSteps().forEach((step) => {
+      if (x + CONFIG.CHAR_WIDTH > step.x && x < step.x + step.width) {
+        if (top === null || step.top > top) top = step.top;
+      }
+    });
+  }
   return top;
 }
 
@@ -1183,6 +1521,7 @@ function showMonster(type, duration) {
 // just duplicate it, so this handler only drives the visual/local-state side.
 socket.on('monsterSpawn', ({ type, duration }) => {
   if (!CONFIG.MONSTER_SPRITES[type]) CONFIG.MONSTER_SPRITES[type] = `assets/${type}.gif`;
+  playSound('event');
   showMonster(type, duration || CONFIG.MONSTER_STAY_MS);
   monsterActive = { type, endsAt: Date.now() + (duration || CONFIG.MONSTER_STAY_MS), startedAt: Date.now() };
   setTimeout(() => { monsterActive = null; }, duration || CONFIG.MONSTER_STAY_MS);
@@ -1215,6 +1554,7 @@ socket.on('playerDied', ({ id }) => {
     Object.keys(inventory).forEach(k => inventory[k] = 0);
     renderInventory();
 
+    playSound('death');
     isDead = true;
     if (localEl) {
       localEl.style.backgroundImage = `url(${CONFIG.SPRITES.dead})`;
@@ -1251,10 +1591,155 @@ socket.on('contributionUpdate', ({ itemId, total, needed }) => {
 socket.on('itemBought', ({ itemId, item }) => {
   clientShop[itemId] = item;
   clientShopTotals[itemId] = Object.values(item.contributions || {}).reduce((a,b)=>a+(b||0),0);
-  if (itemId === 'fire') clientFireOn = true;
+  if (itemId === 'fire' || itemId === 'fireOut') clientFireOn = true;
+  playSound('build');
   renderShop();
   renderMapItems();
   appendChatLog('System', `${item.name || itemId} has been purchased for the room.`);
+});
+
+// ============================================================
+// MARKET — listen for the broker events from the server (see the
+// market:* handlers in server.js). Inventory only ever changes here, once
+// the server has actually confirmed a trade went through — see the
+// comments on those handlers for why.
+// ============================================================
+socket.on('market:new', ({ listing }) => {
+  clientMarket[listing.id] = listing;
+  renderMarket();
+});
+
+socket.on('market:removed', ({ listingId }) => {
+  delete clientMarket[listingId];
+  renderMarket();
+});
+
+socket.on('market:buyFailed', ({ reason }) => {
+  appendChatLog('System', reason || 'That listing is no longer available.');
+});
+
+socket.on('market:purchaseConfirmed', ({ giveItem, giveAmount, wantItem, wantAmount }) => {
+  inventory[wantItem] = Math.max(0, (inventory[wantItem] || 0) - wantAmount);
+  addItem(giveItem, giveAmount);
+  playSound('purchase');
+  appendChatLog('System', `You traded ${wantAmount} ${CONFIG.MARKET_ITEM_LABELS[wantItem]} for ${giveAmount} ${CONFIG.MARKET_ITEM_LABELS[giveItem]}.`);
+});
+
+socket.on('market:sold', ({ wantItem, wantAmount, buyerName }) => {
+  addItem(wantItem, wantAmount);
+  playSound('purchase');
+  appendChatLog('System', `${buyerName} bought your listing — you received ${wantAmount} ${CONFIG.MARKET_ITEM_LABELS[wantItem]}.`);
+});
+
+socket.on('market:cancelled', ({ giveItem, giveAmount }) => {
+  addItem(giveItem, giveAmount);
+  appendChatLog('System', `Listing retrieved — ${giveAmount} ${CONFIG.MARKET_ITEM_LABELS[giveItem]} returned to your inventory.`);
+});
+
+function marketItemOptionsHtml() {
+  return CONFIG.MARKET_ITEM_IDS.map((id) => `<option value="${id}">${CONFIG.MARKET_ITEM_LABELS[id]}</option>`).join('');
+}
+
+function renderMarket() {
+  const giveSelect = document.getElementById('market-give-item');
+  const wantSelect = document.getElementById('market-want-item');
+  if (giveSelect && !giveSelect.dataset.populated) {
+    giveSelect.innerHTML = marketItemOptionsHtml();
+    giveSelect.dataset.populated = '1';
+  }
+  if (wantSelect && !wantSelect.dataset.populated) {
+    wantSelect.innerHTML = marketItemOptionsHtml();
+    wantSelect.dataset.populated = '1';
+  }
+
+  const listEl = document.getElementById('market-listings');
+  if (!listEl) return;
+  listEl.innerHTML = '';
+
+  const listings = Object.values(clientMarket).sort((a, b) => b.createdAt - a.createdAt);
+  if (listings.length === 0) {
+    listEl.innerHTML = '<p class="market-empty">No listings yet — be the first to put something up for trade.</p>';
+    return;
+  }
+
+  listings.forEach((listing) => {
+    const isMine = listing.sellerId === myId;
+    const row = document.createElement('div');
+    row.className = 'market-listing';
+    row.innerHTML = `
+      <div class="market-listing-trade">
+        <img class="market-listing-icon" src="${ITEM_ICONS[listing.giveItem] || ''}">
+        <span class="market-listing-amount">${listing.giveAmount}</span>
+        <span class="market-listing-arrow">→</span>
+        <img class="market-listing-icon" src="${ITEM_ICONS[listing.wantItem] || ''}">
+        <span class="market-listing-amount">${listing.wantAmount}</span>
+      </div>
+      <div class="market-listing-seller">${isMine ? 'You' : listing.sellerName}</div>
+      <div class="market-listing-btn-holder"></div>
+    `;
+    const btnHolder = row.querySelector('.market-listing-btn-holder');
+    if (isMine) {
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'btn btn-sm btn-red';
+      cancelBtn.textContent = `Retrieve (${CONFIG.MARKET_CANCEL_FEE} logs)`;
+      cancelBtn.addEventListener('click', () => {
+        if ((inventory.logs || 0) < CONFIG.MARKET_CANCEL_FEE) {
+          appendChatLog('System', `You need ${CONFIG.MARKET_CANCEL_FEE} logs to retrieve this listing.`);
+          return;
+        }
+        // Fee is charged immediately, same trust model as listing an item
+        // in the first place — the item you're retrieving only comes back
+        // once the server confirms via market:cancelled.
+        inventory.logs -= CONFIG.MARKET_CANCEL_FEE;
+        renderInventory();
+        socket.emit('market:cancel', { listingId: listing.id });
+      });
+      btnHolder.appendChild(cancelBtn);
+    } else {
+      const buyBtn = document.createElement('button');
+      buyBtn.className = 'btn btn-sm btn-green';
+      buyBtn.textContent = 'Buy';
+      buyBtn.addEventListener('click', () => {
+        if ((inventory[listing.wantItem] || 0) < listing.wantAmount) {
+          appendChatLog('System', `You don't have enough ${CONFIG.MARKET_ITEM_LABELS[listing.wantItem]} for that.`);
+          return;
+        }
+        socket.emit('market:buy', { listingId: listing.id });
+      });
+      btnHolder.appendChild(buyBtn);
+    }
+    listEl.appendChild(row);
+  });
+}
+
+document.getElementById('market-list-btn')?.addEventListener('click', () => {
+  const giveItem = document.getElementById('market-give-item').value;
+  const wantItem = document.getElementById('market-want-item').value;
+  const giveAmount = parseInt(document.getElementById('market-give-amount').value, 10);
+  const wantAmount = parseInt(document.getElementById('market-want-amount').value, 10);
+  const errorEl = document.getElementById('market-form-error');
+  errorEl.textContent = '';
+
+  if (!Number.isInteger(giveAmount) || giveAmount <= 0 || !Number.isInteger(wantAmount) || wantAmount <= 0) {
+    errorEl.textContent = 'Enter valid amounts for both sides.';
+    return;
+  }
+  if (giveItem === wantItem) {
+    errorEl.textContent = "Can't trade an item for itself.";
+    return;
+  }
+  if ((inventory[giveItem] || 0) < giveAmount) {
+    errorEl.textContent = `You don't have ${giveAmount} ${CONFIG.MARKET_ITEM_LABELS[giveItem]}.`;
+    return;
+  }
+
+  // The item leaves the inventory the moment it's listed (held in escrow
+  // by the room's market state) — it only comes back if the listing sells
+  // (as the *want* item instead) or is retrieved for the 50-log fee.
+  inventory[giveItem] -= giveAmount;
+  renderInventory();
+  playSound('click');
+  socket.emit('market:list', { giveItem, giveAmount, wantItem, wantAmount });
 });
 
 socket.on('fireToggled', ({ fireOn }) => {

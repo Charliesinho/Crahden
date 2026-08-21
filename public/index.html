@@ -138,8 +138,10 @@
           <button class="tab-icon-btn active" data-tab="inventory" title="Inventory"><img src="./assets/iconsui/backpack.png" class="iconBig" /></button>
           <button class="tab-icon-btn" data-tab="equipment" title="Equipment"><img src="./assets/iconsui/wardrobe.png" class="iconBig" /></button>
           <button class="tab-icon-btn" data-tab="shop" title="Shop"><img src="./assets/iconsui/shop.png" class="iconBig" /></button>
+          <button class="tab-icon-btn" data-tab="market" title="Market"><img src="./assets/iconsui/market.png" class="iconBig" /></button>
           <button class="tab-icon-btn" data-tab="emotes" title="Emotes"><img src="./assets/iconsui/emoji.png" class="iconBig" /></button>
           <button class="tab-icon-btn" data-tab="skills" title="Skills"><img src="./assets/iconsui/skills.png" class="iconBig" /></button>
+          <button id="wiki-btn" class="tab-icon-btn" title="Wiki"><img src="./assets/iconsui/wiki.png" class="iconBig" /></button>
         </div>
 
         <div id="tab-content">
@@ -173,6 +175,26 @@
                 </div>
               </div>
             </div>
+          </div>
+
+          <div class="tab-pane" data-pane="market">
+            <h3>Market</h3>
+            <div id="market-list-form">
+              <p class="field-label">List an item</p>
+              <div class="market-form-row">
+                <span>Give</span>
+                <input id="market-give-amount" class="text-input market-amount-input" type="number" min="1" value="1">
+                <select id="market-give-item" class="text-input market-item-select"></select>
+              </div>
+              <div class="market-form-row">
+                <span>For</span>
+                <input id="market-want-amount" class="text-input market-amount-input" type="number" min="1" value="1">
+                <select id="market-want-item" class="text-input market-item-select"></select>
+              </div>
+              <button id="market-list-btn" class="btn btn-sm btn-green" style="width:100%;">List Item</button>
+              <p id="market-form-error"></p>
+            </div>
+            <div id="market-listings"></div>
           </div>
 
           <div class="tab-pane" data-pane="emotes">
@@ -210,6 +232,84 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ============ WIKI (opened from the tab bar, works above any pane) ============ -->
+  <div id="wiki-overlay" class="hidden">
+    <div class="wiki-modal">
+      <div class="wiki-modal-header">
+        <h2>📜 Crahden Wiki</h2>
+        <button id="wiki-close-btn" class="btn btn-sm btn-red">Close</button>
+      </div>
+      <div class="wiki-modal-body">
+
+        <section class="wiki-section">
+          <h3>Getting Around</h3>
+          <ul>
+            <li><strong>← →</strong> walk, <strong>↑</strong> jump.</li>
+            <li><strong>E</strong> interacts with whatever you're standing next to — a tree, the lake, your inventory items, etc.</li>
+            <li>Type <strong>/house</strong> in chat to hide inside your house (once it's been built by the room).</li>
+            <li>Press <strong>Enter</strong> to chat with everyone in the room.</li>
+          </ul>
+        </section>
+
+        <section class="wiki-section">
+          <h3>Skills &amp; Gathering</h3>
+          <ul>
+            <li><strong>🪓 Woodcutting</strong> — press E next to a tree for logs. Higher levels have a chance at a rare seed drop.</li>
+            <li><strong>🎣 Fishing</strong> — press E next to the lake. Different fish tiers can turn up, and — once the casino is built on the second map — a rare casino token.</li>
+            <li><strong>🔬 Research</strong> — gained from other activities around the room.</li>
+          </ul>
+        </section>
+
+        <section class="wiki-section">
+          <h3>The Shop</h3>
+          <p>Every structure is funded together — anyone can contribute logs (or the listed currency) toward a building until it's fully paid off and appears on the map for the whole room.</p>
+          <ul>
+            <li><strong>Fire</strong> — can be turned on or off once built. Keep it lit; some monster events punish an unlit fire.</li>
+            <li><strong>House</strong> — lets you type /house to hide safely during dangerous events.</li>
+            <li><strong>Platform</strong> — solid ground you can stand on, and a safe zone during a lava event.</li>
+            <li><strong>Farm</strong> — plant a seed from your inventory (click it) and come back later for hay.</li>
+            <li><strong>Skins</strong> tab — cosmetic outfits bought with gathered resources. Real-money skins live under the $ tab.</li>
+          </ul>
+        </section>
+
+        <section class="wiki-section">
+          <h3>Monsters &amp; Events</h3>
+          <ul>
+            <li><strong>Flodder</strong> — stay near a lit fire and don't move once it settles, or it gets you.</li>
+            <li><strong>Fakeflodder</strong> — keep jumping for its whole visit, or it gets you.</li>
+            <li><strong>Worren</strong> — get to the sides of the map; the middle is deadly.</li>
+            <li><strong>Lava</strong> — the ground itself turns dangerous. Get onto a platform (or, on the second map, the waterfall) until it passes.</li>
+          </ul>
+          <p class="wiki-note">The second map trades these out for two new ones:</p>
+          <ul>
+            <li><strong>Goobler</strong> — the opposite of a worren: get to the middle of the map, the sides are deadly.</li>
+            <li><strong>Destroyer</strong> — someone wearing the Mummy skin has to hold the dead center while everyone else stays out on the sides. Get it wrong (or have nobody in Mummy) and the whole room is caught.</li>
+          </ul>
+        </section>
+
+        <section class="wiki-section">
+          <h3>Escaping to the Next Map</h3>
+          <p>Once every base structure on the first map has been built, an <strong>Escape Map</strong> item appears in the shop. Fund it with 10 logs and the whole room moves on: new palette, a fresh shop (Fire and the Casino), a new lake, new monsters, and a new set of skins to earn.</p>
+        </section>
+
+        <section class="wiki-section">
+          <h3>The Casino</h3>
+          <p>Once the Casino is built on the second map, fishing has a small chance to land you a casino token. Click a token in your inventory to open the machine — three reels spin, and if all three land on the same symbol you win 100 of that item. The golden pyramid is always one of the possible symbols.</p>
+        </section>
+
+        <section class="wiki-section">
+          <h3>The Market</h3>
+          <p>List anything from your inventory for a price in any other item — pick what you're giving, what you want for it, and how much of each. Your item leaves your inventory the moment it's listed and sits in the market for anyone in the room to buy.</p>
+          <ul>
+            <li>Buying a listing instantly trades your payment for their item.</li>
+            <li>Only the person who listed an item can retrieve it early — doing so costs a 50-log fee.</li>
+          </ul>
+        </section>
+
+      </div>
     </div>
   </div>
 

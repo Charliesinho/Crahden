@@ -604,6 +604,14 @@ const RESPAWN_MS = 30 * 1000;           // respawn delay after death
 const WORREN_ZONE_LO = 0.25;            // worren: danger zone is the middle 2/4 of the map (25%-75%)
 const WORREN_ZONE_HI = 0.75;
 
+// Map 2 monsters
+const GOOBLER_ZONE_LO = 0.25;           // goobler: inverse of worren — safety zone is the middle (25%-75%), everywhere else is deadly
+const GOOBLER_ZONE_HI = 0.75;
+const DESTROYER_CENTER_LO = 0.4;        // destroyer: the mummy-skin player must stand in this narrow center band...
+const DESTROYER_CENTER_HI = 0.6;
+const DESTROYER_SIDE_LO = 0.2;          // ...while everyone else must be out on the sides (outside this wider band)
+const DESTROYER_SIDE_HI = 0.8;
+
 const HOUSE_HIDE_MS = 5 * 60 * 1000;    // /house: how long you stay hidden/safe if you let it run out
 const HOUSE_COOLDOWN_MS = 20 * 60 * 1000; // /house: minimum time between starting a hide
 
@@ -651,13 +659,13 @@ function makePlayer(username) {
 // ------------------------------------------------------------
 const SHOP_CATALOG = {
   fire: {
-    id: 'fire', name: 'Fire', price: 500, currency: 'logs',
+    id: 'fire', name: 'Fire', price: 1, currency: 'logs',
     x: 195, y: 0.2, width: 110, height: 110,
     spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif',
     bought: false, contributions: {},
   },
   house: {
-    id: 'house', name: 'House', price: 1000, currency: 'logs',
+    id: 'house', name: 'House', price: 1, currency: 'logs',
     x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
     sprite: 'assets/house.gif',
     zIndex: -1, // background decorations render behind the lake(0)/trees(1)/players(2); house is frontmost of this group
@@ -665,28 +673,28 @@ const SHOP_CATALOG = {
     bought: false, contributions: {},
   },
   lamp: {
-    id: 'lamp', name: 'Lamp', price: 100, currency: 'logs',
+    id: 'lamp', name: 'Lamp', price: 1, currency: 'logs',
     x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
     sprite: 'assets/lamp.gif',
     zIndex: -3,
     bought: false, contributions: {},
   },
   wall: {
-    id: 'wall', name: 'Wall', price: 200, currency: 'logs',
+    id: 'wall', name: 'Wall', price: 1, currency: 'logs',
     x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
     sprite: 'assets/wall.gif',
     zIndex: -4, // behind every other decoration/tree/lake — furthest back
     bought: false, contributions: {},
   },
   farm: {
-    id: 'farm', name: 'Farm', price: 500, currency: 'logs',
+    id: 'farm', name: 'Farm', price: 1, currency: 'logs',
     x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
     sprite: 'assets/farm.gif',
     zIndex: -2, // behind house, in front of wall/lamp
     bought: false, contributions: {},
   },
   platform: {
-    id: 'platform', name: 'Platform', price: 500, currency: 'logs',
+    id: 'platform', name: 'Platform', price: 1, currency: 'logs',
     x: 150, y: 7.2, width: 75, height: 75, // matches: left 30%, bottom 18.8%, width/height 15% of the map
     surfaceOffset: -15, // nudge the walkable top surface up(+)/down(-) if it doesn't line up with the sprite's art
     sprite: 'assets/platform.gif',
@@ -694,6 +702,50 @@ const SHOP_CATALOG = {
     bought: false, contributions: {},
   },
 };
+
+// ------------------------------------------------------------
+// Map 2 ("escape map") — a totally separate shop catalog, swapped in for a
+// room's purchasableItems once the escape item (below) is funded. lakeOut
+// is NOT in here — like the original lake, it's just always present and
+// isn't purchasable, so the client handles it entirely on its own.
+// ------------------------------------------------------------
+const SHOP_CATALOG_MAP2 = {
+  fireOut: {
+    id: 'fireOut', name: 'Fire', price: 1, currency: 'logs',
+    // Full-map overlay (like the map-1 background decorations below) rather
+    // than a small fixed-position icon — matches the flame art covering
+    // the whole scene on this map.
+    x: 0, y: -86.8, width: 500, height: 500,
+    zIndex: 1,
+    spriteOn: 'assets/fireOnOut.gif', spriteOff: 'assets/fireOffOut.gif',
+    bought: false, contributions: {},
+  },
+  casino: {
+    id: 'casino', name: 'Casino', price: 1, currency: 'logs',
+    // Same full-map coverage trick as house/lamp/wall/farm on map 1.
+    x: 0, y: -86.8, width: 500, height: 500,
+    sprite: 'assets/casino.gif',
+    zIndex: -1,
+    bought: false, contributions: {},
+  },
+};
+
+// The item that unlocks the transition to map 2. Not part of either static
+// catalog above — it only ever exists in a room once trySpawnEscapeMapItem()
+// (below) adds it after every map-1 structure is built. isMapTransition
+// marks it as shop-only: the client never tries to place it on the map, and
+// the server's contribute handler special-cases it to advance the room to
+// map 2 instead of the normal "place a decoration" flow.
+const ESCAPE_MAP_ITEM = {
+  id: 'escapemap', name: 'Escape Map', price: 10, currency: 'logs',
+  isMapTransition: true,
+  bought: false, contributions: {},
+};
+
+// Every base map-1 structure that must be built before the escape map item
+// unlocks. Deliberately just the map-1 "tier 1" ids — a follow-up tier like
+// house2 isn't required, since house already counts as that line being done.
+const MAP1_STRUCTURE_IDS = ['fire', 'house', 'lamp', 'wall', 'farm', 'platform'];
 
 function createRoomState() {
   const purchasableItems = {};
@@ -709,11 +761,78 @@ function createRoomState() {
     nextTreeId: 1,
     purchasableItems,
     fireOn: false,
+    mapLevel: 1,
     monsterTimer: null,
     monsterActive: null, // { type, startedAt, endsAt }
     lavaTimer: null,
     lavaActive: null,    // { startedAt, graceEndsAt }
+    marketListings: {},
+    nextListingId: 1,
   };
+}
+
+// ------------------------------------------------------------
+// MARKET — player-to-player trading. Fully room-scoped and ephemeral, same
+// as everything else in this game: listings live only in room.marketListings
+// (wiped along with the room once it's empty), and — just like the shop's
+// contribute flow — the server never actually checks a client's inventory
+// counts; it trusts what the client sends and just brokers the trade so
+// both sides' inventories update in sync. A listing is tied to the socket
+// id that created it, so (consistent with every other per-room mechanic
+// here, e.g. hideTimer/interactions) a seller who disconnects and rejoins
+// gets a new id and can no longer cancel their own old listing — only buy
+// it back like anyone else, or leave it up for someone to purchase.
+const MARKET_ITEM_IDS = ['logs', 'fish', 'fish2', 'fish3', 'fish4', 'hay', 'seed', 'casinotoken', 'goldenpyramid'];
+const MARKET_CANCEL_FEE = 50; // logs, paid by the seller to retrieve their own listing
+
+function isValidMarketItem(id) { return MARKET_ITEM_IDS.includes(id); }
+function isPositiveInt(n) { return Number.isInteger(n) && n > 0 && n <= 1000000; }
+
+// Checks whether every map-1 structure is now built and, if so, drops the
+// escape map item into the room's shop (once). Called after every
+// successful "contribute" purchase while the room is still on map 1.
+function maybeUnlockEscapeMap(code) {
+  const room = rooms[code];
+  if (!room || room.mapLevel !== 1) return;
+  if (room.purchasableItems.escapemap) return; // already unlocked
+
+  const allBuilt = MAP1_STRUCTURE_IDS.every((id) => room.purchasableItems[id]?.bought);
+  if (!allBuilt) return;
+
+  room.purchasableItems.escapemap = JSON.parse(JSON.stringify(ESCAPE_MAP_ITEM));
+  io.to(code).emit('escapeMapUnlocked', { item: room.purchasableItems.escapemap });
+  sysMsg(code, 'Every structure has been built! An "Escape Map" has appeared in the shop — fund it with 10 logs to move on.');
+}
+
+// Swaps the room over to map 2: fresh shop catalog, palette/background
+// change (client-driven off mapChanged), and a different monster pool.
+function advanceRoomToMap2(code) {
+  const room = rooms[code];
+  if (!room || room.mapLevel === 2) return;
+
+  room.mapLevel = 2;
+  room.fireOn = false; // the old fire is gone — fireOut has to be rebuilt from scratch
+
+  const purchasableItems = {};
+  Object.entries(SHOP_CATALOG_MAP2).forEach(([k, v]) => {
+    purchasableItems[k] = JSON.parse(JSON.stringify(v));
+    purchasableItems[k].contributions = {};
+    purchasableItems[k].bought = false;
+  });
+  room.purchasableItems = purchasableItems;
+
+  // Old map-1 monster rotation no longer applies — clear it and pick fresh
+  // from the map-2 pool.
+  if (room.monsterTimer) clearTimeout(room.monsterTimer);
+  if (room.monsterActive) endMonsterEvent(code);
+  scheduleMonsterForRoom(code);
+
+  io.to(code).emit('mapChanged', {
+    mapLevel: 2,
+    purchasableItems: room.purchasableItems,
+    fireOn: room.fireOn,
+  });
+  sysMsg(code, 'The world shifts around you... welcome to the next map!');
 }
 
 // Trees — picks a spot that doesn't overlap the (static) lake, retrying a
@@ -754,17 +873,21 @@ function sysMsg(code, text) {
   io.to(code).emit('playerChat', { id: 'system', username: 'System', text });
 }
 
-const MONSTER_TYPES = ['flodder', 'fakeflodder', 'worren']; // add more ids here later
+const MONSTER_TYPES_MAP1 = ['flodder', 'fakeflodder', 'worren'];
+const MONSTER_TYPES_MAP2 = ['goobler', 'destroyer'];
 const MONSTER_SPAWN_MESSAGES = {
   flodder: 'A flodder appears! Stay by the fire, and don\'t move once it settles in...',
   fakeflodder: 'A strange shadow appears... keep jumping, or it will get you!',
   worren: 'A worren appears! Get to the sides of the map — the middle isn\'t safe!',
+  goobler: 'A goobler appears! Get to the middle of the map — the sides aren\'t safe!',
+  destroyer: 'A destroyer appears! Someone in the Mummy skin needs to hold the center — everyone else, get to the sides!',
 };
 
 function spawnMonster(code) {
   const room = rooms[code];
   if (!room) return;
-  const type = MONSTER_TYPES[Math.floor(Math.random() * MONSTER_TYPES.length)];
+  const pool = room.mapLevel === 2 ? MONSTER_TYPES_MAP2 : MONSTER_TYPES_MAP1;
+  const type = pool[Math.floor(Math.random() * pool.length)];
   const now = Date.now();
   room.monsterActive = {
     type,
@@ -772,6 +895,7 @@ function spawnMonster(code) {
     graceEndsAt: now + MONSTER_GRACE_MS,
     movementKillsActive: false,  // flodder only: becomes true once grace passes, if the fire is on
     fireRescueWindowOpen: false, // flodder only: true while waiting to see if someone relights the fire
+    destroyerFailed: false,      // destroyer only: latches once the rule is broken, so we only kill+message once
   };
 
   io.to(code).emit('monsterSpawn', { type, duration: MONSTER_DISPLAY_MS, grace: MONSTER_GRACE_MS });
@@ -783,6 +907,10 @@ function spawnMonster(code) {
     room.monsterActive.jumpCheckInterval = setInterval(() => checkFakeflodderDeaths(code), 400);
   } else if (type === 'worren') {
     room.monsterActive.zoneCheckInterval = setInterval(() => checkWorrenDeaths(code), 400);
+  } else if (type === 'goobler') {
+    room.monsterActive.zoneCheckInterval = setInterval(() => checkGooblerDeaths(code), 400);
+  } else if (type === 'destroyer') {
+    room.monsterActive.zoneCheckInterval = setInterval(() => checkDestroyerDeaths(code), 400);
   }
 
   room.monsterActive.endTimer = setTimeout(() => endMonsterEvent(code), MONSTER_DISPLAY_MS);
@@ -848,6 +976,69 @@ function checkWorrenDeaths(code) {
   });
 }
 
+// Polled while a goobler is active — the inverse of worren: the middle
+// 2/4 of the map (25%-75%) is now the SAFE zone, everywhere else is deadly.
+function checkGooblerDeaths(code) {
+  const room = rooms[code];
+  const ma = room && room.monsterActive;
+  if (!ma || ma.type !== 'goobler') return;
+  const now = Date.now();
+  if (now < ma.graceEndsAt) return;
+
+  const loX = CONFIG.MAP_SIZE * GOOBLER_ZONE_LO;
+  const hiX = CONFIG.MAP_SIZE * GOOBLER_ZONE_HI;
+  Object.entries(room.players).forEach(([pid, p]) => {
+    if (p.dead || p.hiding) return;
+    const center = (p.x || 0) + CONFIG.CHAR_WIDTH / 2;
+    if (center < loX || center > hiX) {
+      killPlayerInRoom(code, pid, 'the goobler');
+    }
+  });
+}
+
+// Polled while a destroyer is active. Requires at least one player wearing
+// the Mummy skin to be standing dead-center, and every other player to be
+// out on the sides. Any violation kills the whole room at once (latched via
+// destroyerFailed so it only happens — and only messages — a single time
+// per event).
+function checkDestroyerDeaths(code) {
+  const room = rooms[code];
+  const ma = room && room.monsterActive;
+  if (!ma || ma.type !== 'destroyer' || ma.destroyerFailed) return;
+  const now = Date.now();
+  if (now < ma.graceEndsAt) return;
+
+  const centerLoX = CONFIG.MAP_SIZE * DESTROYER_CENTER_LO;
+  const centerHiX = CONFIG.MAP_SIZE * DESTROYER_CENTER_HI;
+  const sideLoX = CONFIG.MAP_SIZE * DESTROYER_SIDE_LO;
+  const sideHiX = CONFIG.MAP_SIZE * DESTROYER_SIDE_HI;
+
+  const alive = Object.entries(room.players).filter(([, p]) => !p.dead && !p.hiding);
+  const centerOf = (p) => (p.x || 0) + CONFIG.CHAR_WIDTH / 2;
+
+  const mummyInCenter = alive.filter(([, p]) => {
+    if (p.outfit !== 'mummy') return false;
+    const c = centerOf(p);
+    return c >= centerLoX && c <= centerHiX;
+  });
+
+  let violation = mummyInCenter.length === 0;
+  if (!violation) {
+    const centerIds = new Set(mummyInCenter.map(([pid]) => pid));
+    violation = alive.some(([pid, p]) => {
+      if (centerIds.has(pid)) return false; // the mummy holding the center is fine right where they are
+      const c = centerOf(p);
+      return c > sideLoX && c < sideHiX; // not far enough out on the sides
+    });
+  }
+
+  if (violation) {
+    ma.destroyerFailed = true;
+    sysMsg(code, 'The destroyer\'s rule was broken... everyone is caught.');
+    Object.keys(room.players).forEach((pid) => killPlayerInRoom(code, pid, 'the destroyer'));
+  }
+}
+
 function endMonsterEvent(code) {
   const room = rooms[code];
   if (!room || !room.monsterActive) return;
@@ -888,6 +1079,13 @@ function spawnLava(code) {
   room.lavaActive.endTimer = setTimeout(() => endLavaEvent(code), LAVA_DISPLAY_MS);
 }
 
+// lakeOut (map 2's lake) doubles as a lava-safe platform, same as a bought
+// "platform" item — it's automatic rather than purchasable, so it isn't in
+// SHOP_CATALOG_MAP2 and needs its own entry here. Horizontal bounds only
+// (in CONFIG.MAP_SIZE units) — that's all the lava-safety check needs;
+// height/tiering for standing on top of it is handled client-side.
+const LAKE_OUT_PLATFORM = { x: 50, width: 140 }; // left:10%, width:28% of MAP_SIZE(500)
+
 function checkLavaDeaths(code) {
   const room = rooms[code];
   const la = room && room.lavaActive;
@@ -896,6 +1094,7 @@ function checkLavaDeaths(code) {
   if (now < la.graceEndsAt) return;
 
   const platforms = Object.values(room.purchasableItems).filter((it) => it.isPlatform && it.bought);
+  if (room.mapLevel === 2) platforms.push(LAKE_OUT_PLATFORM);
   Object.entries(room.players).forEach(([pid, p]) => {
     if (p.dead || p.hiding) return;
     const center = (p.x || 0) + CONFIG.CHAR_WIDTH / 2;
@@ -1026,6 +1225,8 @@ io.on('connection', (socket) => {
       trees: room.trees,
       purchasableItems: room.purchasableItems,
       fireOn: room.fireOn,
+      mapLevel: room.mapLevel,
+      marketListings: room.marketListings,
     });
 
     socket.to(code).emit('playerJoined', { id: socket.id, player: publicPlayer(room.players[socket.id]) });
@@ -1125,7 +1326,15 @@ io.on('connection', (socket) => {
 
     if (total >= item.price && !item.bought) {
       item.bought = true;
-      if (itemId === 'fire') room.fireOn = true;
+
+      // The escape map item is shop-only — funding it advances the whole
+      // room to map 2 instead of placing a decoration.
+      if (item.isMapTransition) {
+        advanceRoomToMap2(code);
+        return;
+      }
+
+      if (itemId === 'fire' || itemId === 'fireOut') room.fireOn = true;
       if (item.next && item.next.id && item.next.id !== itemId) {
         const n = item.next;
         const next = {
@@ -1146,7 +1355,78 @@ io.on('connection', (socket) => {
         room.purchasableItems[next.id] = next;
       }
       io.to(code).emit('itemBought', { itemId, item: room.purchasableItems[itemId] });
+      maybeUnlockEscapeMap(code);
     }
+  });
+
+  // ---- Market: list / buy / cancel --------------------------------
+  socket.on('market:list', ({ giveItem, giveAmount, wantItem, wantAmount } = {}) => {
+    const code = socket.data.room;
+    const room = rooms[code];
+    const player = room && room.players[socket.id];
+    if (!room || !player) return;
+
+    if (!isValidMarketItem(giveItem) || !isValidMarketItem(wantItem)) return;
+    if (!isPositiveInt(giveAmount) || !isPositiveInt(wantAmount)) return;
+    if (giveItem === wantItem) return; // no point trading an item for itself
+
+    const listing = {
+      id: room.nextListingId++,
+      sellerId: socket.id,
+      sellerName: player.username,
+      giveItem, giveAmount, wantItem, wantAmount,
+      createdAt: Date.now(),
+    };
+    room.marketListings[listing.id] = listing;
+    io.to(code).emit('market:new', { listing });
+  });
+
+  socket.on('market:buy', ({ listingId } = {}) => {
+    const code = socket.data.room;
+    const room = rooms[code];
+    if (!room) return;
+    const listing = room.marketListings[listingId];
+    if (!listing) {
+      socket.emit('market:buyFailed', { listingId, reason: 'This listing is no longer available.' });
+      return;
+    }
+    if (listing.sellerId === socket.id) return; // can't buy your own listing
+
+    delete room.marketListings[listingId];
+    io.to(code).emit('market:removed', { listingId });
+
+    // Buyer pays wantItem, receives giveItem — only now, once the trade is
+    // confirmed to have actually gone through, so a buyer who loses a race
+    // against someone else never has anything deducted.
+    socket.emit('market:purchaseConfirmed', {
+      listingId, giveItem: listing.giveItem, giveAmount: listing.giveAmount,
+      wantItem: listing.wantItem, wantAmount: listing.wantAmount,
+    });
+
+    // Seller receives the payment, but only if they're still connected —
+    // same "must be present in the room" limitation the rest of this
+    // game's ephemeral, per-room economy already has.
+    const sellerSocket = io.sockets.sockets.get(listing.sellerId);
+    if (sellerSocket) {
+      sellerSocket.emit('market:sold', {
+        listingId, wantItem: listing.wantItem, wantAmount: listing.wantAmount,
+        buyerName: (room.players[socket.id] || {}).username || 'Someone',
+      });
+    }
+  });
+
+  socket.on('market:cancel', ({ listingId } = {}) => {
+    const code = socket.data.room;
+    const room = rooms[code];
+    if (!room) return;
+    const listing = room.marketListings[listingId];
+    if (!listing || listing.sellerId !== socket.id) return;
+
+    delete room.marketListings[listingId];
+    io.to(code).emit('market:removed', { listingId });
+    // The 50-log fee is paid client-side (same trust model as everywhere
+    // else); this just returns the escrowed item.
+    socket.emit('market:cancelled', { listingId, giveItem: listing.giveItem, giveAmount: listing.giveAmount });
   });
 
   socket.on('toggleFire', () => {
