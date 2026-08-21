@@ -79,19 +79,19 @@ const CONFIG = {
     beast: { name: 'Beast', price: 1, currency: 'goldenpyramid', map: 2 },
     // Real-money skin — no price/currency (that lives on the server, tied to
     // the actual Stripe Price), just premium:true + what to show for it.
-    aqua: { name: 'Aqua', premium: true, priceEUR: 4.50 },
-    cfrosky: { name: 'Cfrosky', premium: true, priceEUR: 4.50 },
+    aqua: { name: 'Aqua', premium: true, priceEUR: 4.50, social: "https://www.twitch.tv/notaqualicc" },
+    cfrosky: { name: 'Cfrosky', premium: true, priceEUR: 4.50, social: "https://www.twitch.tv/cfrosky" },
   },
 
   SHOP_CATALOG: {
     fire: {
-      id: 'fire', name: 'Fire', price: 1, currency: 'logs',
+      id: 'fire', name: 'Fire', price: 100, currency: 'logs',
       x: 195, y: 0.2, width: 110, height: 110,
       spriteOn: 'assets/fireOn.gif', spriteOff: 'assets/fireOff.gif',
       bought: false, contributions: {},
     },
     house: {
-      id: 'house', name: 'House', price: 1, currency: 'logs',
+      id: 'house', name: 'House', price: 500, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/house.gif',
       zIndex: -1, // background decorations render behind the lake(0)/trees(1)/players(2); house is frontmost of this group
@@ -99,28 +99,28 @@ const CONFIG = {
       bought: false, contributions: {},
     },
     lamp: {
-      id: 'lamp', name: 'Lamp', price: 1, currency: 'logs',
+      id: 'lamp', name: 'Lamp', price: 200, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/lamp.gif',
       zIndex: -3,
       bought: false, contributions: {},
     },
     wall: {
-      id: 'wall', name: 'Wall', price: 1, currency: 'logs',
+      id: 'wall', name: 'Wall', price: 100, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/wall.gif',
       zIndex: -4, // behind every other decoration/tree/lake — furthest back
       bought: false, contributions: {},
     },
     farm: {
-      id: 'farm', name: 'Farm', price: 1, currency: 'logs',
+      id: 'farm', name: 'Farm', price: 1000, currency: 'logs',
       x: 0, y: -86.8, width: 500, height: 500, // left:0%, bottom:0% (of the whole map), 100% x 100%
       sprite: 'assets/farm.gif',
       zIndex: -2, // behind house, in front of wall/lamp
       bought: false, contributions: {},
     },
     platform: {
-      id: 'platform', name: 'Platform', price: 1, currency: 'logs',
+      id: 'platform', name: 'Platform', price: 300, currency: 'logs',
       x: 150, y: 7.2, width: 75, height: 75, // matches: left 30%, bottom 18.8%, width/height 15% of the map
       surfaceOffset: -15, // nudge the walkable top surface up(+)/down(-) if it doesn't line up with the sprite's art
       sprite: 'assets/platform.gif',
@@ -133,7 +133,7 @@ const CONFIG = {
   // fallback used before the server's roomJoined/mapChanged data arrives.
   SHOP_CATALOG_MAP2: {
     fireOut: {
-      id: 'fireOut', name: 'Fire', price: 1, currency: 'logs',
+      id: 'fireOut', name: 'Fire', price: 200, currency: 'logs',
       // Full-map overlay (like the map-1 background decorations below) rather
       // than a small fixed-position icon — matches the flame art covering
       // the whole scene on this map.
@@ -143,7 +143,7 @@ const CONFIG = {
       bought: false, contributions: {},
     },
     casino: {
-      id: 'casino', name: 'Casino', price: 1, currency: 'logs',
+      id: 'casino', name: 'Casino', price: 1000, currency: 'logs',
       // Same full-map coverage trick as house/lamp/wall/farm on map 1.
       x: 0, y: -86.8, width: 500, height: 500,
       sprite: 'assets/casino.gif',
@@ -182,7 +182,7 @@ const CONFIG = {
   // plus seed/hay (anything a player can actually hold).
   MARKET_ITEM_IDS: ['logs', 'fish', 'fish2', 'fish3', 'fish4', 'hay', 'seed', 'casinotoken', 'goldenpyramid'],
   MARKET_ITEM_LABELS: {
-    logs: 'Logs', fish: 'Fish', fish2: 'Fish II', fish3: 'Fish III', fish4: 'Fish IV',
+    logs: 'Logs', fish: 'Blue fish', fish2: 'Red fish', fish3: 'Green fish', fish4: 'Purple fish',
     hay: 'Hay', seed: 'Seed', casinotoken: 'Casino Token', goldenpyramid: 'Golden Pyramid',
   },
   MARKET_CANCEL_FEE: 50, // logs, paid to retrieve your own listing early
@@ -462,18 +462,61 @@ document.getElementById('create-room-btn').addEventListener('click', () => {
   const username = usernameInput.value.trim() || 'Player';
   socket.emit('createRoom', { username });
 });
-document.getElementById('join-room-btn').addEventListener('click', () => {
+function joinRoomByCode(code) {
   const username = usernameInput.value.trim() || 'Player';
-  const code = roomCodeInput.value.trim();
   if (!code) { lobbyError.textContent = 'Enter a room code'; return; }
   socket.emit('joinRoom', { code, username });
+}
+document.getElementById('join-room-btn').addEventListener('click', () => {
+  joinRoomByCode(roomCodeInput.value.trim());
+});
+
+// ============================================================
+// ROOM BROWSER — a snapshot list of every currently open room, fetched
+// fresh each time the button is pressed (see 'listRooms'/'roomList').
+// ============================================================
+const roomBrowserEl = document.getElementById('room-browser');
+document.getElementById('browse-rooms-btn').addEventListener('click', () => {
+  lobbyEl.classList.add('hidden');
+  roomBrowserEl.classList.remove('hidden');
+  document.getElementById('room-browser-list').innerHTML = '<p class="empty-msg">Loading rooms…</p>';
+  socket.emit('listRooms');
+});
+document.getElementById('room-browser-back-btn').addEventListener('click', () => {
+  roomBrowserEl.classList.add('hidden');
+  lobbyEl.classList.remove('hidden');
+});
+
+socket.on('roomList', ({ rooms }) => {
+  const listEl = document.getElementById('room-browser-list');
+  listEl.innerHTML = '';
+  if (!rooms || rooms.length === 0) {
+    listEl.innerHTML = '<p class="empty-msg">No open rooms right now — create one!</p>';
+    return;
+  }
+  rooms.forEach((room) => {
+    const row = document.createElement('div');
+    row.className = 'room-browser-row';
+    row.innerHTML = `
+      <div class="room-browser-info">
+        <div class="room-browser-title">${room.creatorUsername}'s Room</div>
+        <div class="room-browser-meta">${room.playerCount} player${room.playerCount === 1 ? '' : 's'} · Map ${room.mapLevel}</div>
+      </div>
+    `;
+    const joinBtn = document.createElement('button');
+    joinBtn.className = 'btn btn-sm btn-green';
+    joinBtn.textContent = 'Join';
+    joinBtn.addEventListener('click', () => joinRoomByCode(room.code));
+    row.appendChild(joinBtn);
+    listEl.appendChild(row);
+  });
 });
 
 socket.on('roomError', (message) => { lobbyError.textContent = message; });
 
 socket.on('roomJoined', ({ code, id, players, trees: initialTrees, purchasableItems, fireOn, mapLevel, marketListings }) => {
   roomCode = code; myId = id;
-  lobbyEl.classList.add('hidden'); appEl.classList.remove('hidden');
+  lobbyEl.classList.add('hidden'); roomBrowserEl.classList.add('hidden'); appEl.classList.remove('hidden');
   document.getElementById('room-code-badge').textContent = `Room: ${code}`;
 
   const me = players[id];
@@ -1166,6 +1209,9 @@ function renderShopPremium() {
       <button class="btn btn-sm ${owned ? 'btn-disabled' : 'btn-blue'}" ${owned ? 'disabled' : ''}>
         ${owned ? 'Owned' : 'Buy'}
       </button>
+      <a class="btn btn-sm twitchButton" href="${item.social}" target="_blank"}>
+        Twitch
+      </a>
     `;
     if (!owned) card.querySelector('button').addEventListener('click', () => buyPremiumSkin(id));
     container.appendChild(card);

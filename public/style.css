@@ -27,7 +27,12 @@
   display: none;
 }
 
-* { margin: 0; padding: 0; box-sizing: border-box; font-weight: 100; }
+* { 
+  margin: 0; padding: 0; box-sizing: border-box; font-weight: 100;
+  -webkit-user-select: none; /* Safari */
+  -ms-user-select: none; /* IE 10 and IE 11 */
+  user-select: none; /* Standard syntax */
+ }
 
 body {
   position: relative;
@@ -41,6 +46,11 @@ body {
   font-size: 18px;
   overflow-x: hidden;
   padding: 20px 10px;
+}
+
+option {
+  background-color: var(--accent-yellow);
+  color: black;
 }
 
 .hidden { display: none !important; }
@@ -150,7 +160,8 @@ img, #map, .player, .tree, .lake { image-rendering: pixelated; }
    LOBBY
    ============================================================ */
 #auth-screen,
-#lobby {
+#lobby,
+#room-browser {
   position: fixed;
   inset: 0;
   display: flex;
@@ -232,6 +243,24 @@ img, #map, .player, .tree, .lake { image-rendering: pixelated; }
   height: 2px;
   background: var(--wood-light);
 }
+
+/* Room browser list */
+#room-browser-list {
+  max-height: 320px;
+  overflow-y: auto;
+  text-align: left;
+}
+.room-browser-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--wood-dark);
+}
+.room-browser-row:last-child { border-bottom: none; }
+.room-browser-title { font-size: 17px; color: #ffffff; }
+.room-browser-meta { font-size: 13px; color: #7a7a7a; margin-top: 2px; }
 
 .join-row { display: flex; gap: 8px; }
 .join-row .text-input { text-transform: uppercase; }
@@ -888,3 +917,17 @@ body.map2-theme .wiki-modal { background: #2D2D1C; }
 .casino-result { font-size: 16px; min-height: 20px; margin-bottom: 12px; color: var(--accent-red-dark); }
 .casino-buttons { display: flex; gap: 8px; }
 .casino-buttons .btn { flex: 1; }
+
+.twitchButton {
+  overflow: hidden;
+    position: relative;
+    background: #7943bc;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    width: 100%;
+    display: block;
+    margin-top: 9px;
+    text-decoration: none;
+    color: black;
+}

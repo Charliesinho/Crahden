@@ -96,7 +96,21 @@
         <button id="join-room-btn" class="btn btn-green">Join</button>
       </div>
 
+      <button id="browse-rooms-btn" class="btn btn-blue" style="width:100%;margin-top:10px;">Or Browse Open Rooms</button>
+
       <p id="lobby-error"></p>
+    </div>
+  </div>
+
+  <!-- ============ ROOM BROWSER (list of currently open rooms) ============ -->
+  <div id="room-browser" class="hidden">
+    <div class="lobby-card">
+      <img id="titleImage" src="./assets/title.png" />
+      <p class="lobby-sub">Pick a room to join</p>
+
+      <div id="room-browser-list"></div>
+
+      <button id="room-browser-back-btn" class="btn btn-sm btn-red" style="width:100%;margin-top:14px;">← Back to Menu</button>
     </div>
   </div>
 
@@ -139,7 +153,7 @@
           <button class="tab-icon-btn" data-tab="equipment" title="Equipment"><img src="./assets/iconsui/wardrobe.png" class="iconBig" /></button>
           <button class="tab-icon-btn" data-tab="shop" title="Shop"><img src="./assets/iconsui/shop.png" class="iconBig" /></button>
           <button class="tab-icon-btn" data-tab="market" title="Market"><img src="./assets/iconsui/market.png" class="iconBig" /></button>
-          <button class="tab-icon-btn" data-tab="emotes" title="Emotes"><img src="./assets/iconsui/emoji.png" class="iconBig" /></button>
+          <!-- <button class="tab-icon-btn" data-tab="emotes" title="Emotes"><img src="./assets/iconsui/emoji.png" class="iconBig" /></button> -->
           <button class="tab-icon-btn" data-tab="skills" title="Skills"><img src="./assets/iconsui/skills.png" class="iconBig" /></button>
           <button id="wiki-btn" class="tab-icon-btn" title="Wiki"><img src="./assets/iconsui/wiki.png" class="iconBig" /></button>
         </div>
@@ -252,6 +266,11 @@
             <li>Type <strong>/house</strong> in chat to hide inside your house (once it's been built by the room).</li>
             <li>Press <strong>Enter</strong> to chat with everyone in the room.</li>
           </ul>
+          <div class="wiki-gallery">
+            <div class="wiki-gallery-item"><img src="./assets/tree.png"><span>Tree</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/lake.gif"><span>Lake</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/house.gif"><span>House</span></div>
+          </div>
         </section>
 
         <section class="wiki-section">
@@ -261,6 +280,14 @@
             <li><strong>🎣 Fishing</strong> — press E next to the lake. Different fish tiers can turn up, and — once the casino is built on the second map — a rare casino token.</li>
             <li><strong>🔬 Research</strong> — gained from other activities around the room.</li>
           </ul>
+          <div class="wiki-gallery">
+            <div class="wiki-gallery-item"><img src="./assets/logs.png"><span>Logs</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/fish.png"><span>Fish</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/fish2.png"><span>Fish II</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/fish3.png"><span>Fish III</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/fish4.png"><span>Fish IV</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/seed.png"><span>Seed</span></div>
+          </div>
         </section>
 
         <section class="wiki-section">
@@ -273,6 +300,12 @@
             <li><strong>Farm</strong> — plant a seed from your inventory (click it) and come back later for hay.</li>
             <li><strong>Skins</strong> tab — cosmetic outfits bought with gathered resources. Real-money skins live under the $ tab.</li>
           </ul>
+          <div class="wiki-gallery">
+            <div class="wiki-gallery-item"><img src="./assets/fireOn.gif"><span>Fire</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/house.gif"><span>House</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/platform.gif"><span>Platform</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/hay.png"><span>Hay</span></div>
+          </div>
         </section>
 
         <section class="wiki-section">
@@ -283,21 +316,41 @@
             <li><strong>Worren</strong> — get to the sides of the map; the middle is deadly.</li>
             <li><strong>Lava</strong> — the ground itself turns dangerous. Get onto a platform (or, on the second map, the waterfall) until it passes.</li>
           </ul>
+          <div class="wiki-gallery">
+            <div class="wiki-gallery-item"><img src="./assets/flodder.gif"><span>Flodder</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/fakeflodder.gif"><span>Fakeflodder</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/worren.gif"><span>Worren</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/lava.gif"><span>Lava</span></div>
+          </div>
           <p class="wiki-note">The second map trades these out for two new ones:</p>
           <ul>
             <li><strong>Goobler</strong> — the opposite of a worren: get to the middle of the map, the sides are deadly.</li>
             <li><strong>Destroyer</strong> — someone wearing the Mummy skin has to hold the dead center while everyone else stays out on the sides. Get it wrong (or have nobody in Mummy) and the whole room is caught.</li>
           </ul>
+          <div class="wiki-gallery">
+            <div class="wiki-gallery-item"><img src="./assets/goobler.gif"><span>Goobler</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/destroyer.gif"><span>Destroyer</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/idlemummy.gif"><span>Mummy skin</span></div>
+          </div>
         </section>
 
         <section class="wiki-section">
           <h3>Escaping to the Next Map</h3>
           <p>Once every base structure on the first map has been built, an <strong>Escape Map</strong> item appears in the shop. Fund it with 10 logs and the whole room moves on: new palette, a fresh shop (Fire and the Casino), a new lake, new monsters, and a new set of skins to earn.</p>
+          <div class="wiki-gallery">
+            <div class="wiki-gallery-item"><img src="./assets/escapemap.png"><span>Escape Map</span></div>
+            <div class="wiki-gallery-item wiki-gallery-wide"><img src="./assets/backgroundOut.gif"><span>Map 2</span></div>
+          </div>
         </section>
 
         <section class="wiki-section">
           <h3>The Casino</h3>
           <p>Once the Casino is built on the second map, fishing has a small chance to land you a casino token. Click a token in your inventory to open the machine — three reels spin, and if all three land on the same symbol you win 100 of that item. The golden pyramid is always one of the possible symbols.</p>
+          <div class="wiki-gallery">
+            <div class="wiki-gallery-item wiki-gallery-wide"><img src="./assets/casino.gif"><span>Casino</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/casinotoken.png"><span>Token</span></div>
+            <div class="wiki-gallery-item"><img src="./assets/goldenpyramid.png"><span>Golden Pyramid</span></div>
+          </div>
         </section>
 
         <section class="wiki-section">
@@ -307,6 +360,11 @@
             <li>Buying a listing instantly trades your payment for their item.</li>
             <li>Only the person who listed an item can retrieve it early — doing so costs a 50-log fee.</li>
           </ul>
+          <div class="wiki-gallery wiki-gallery-trade">
+            <div class="wiki-gallery-item"><img src="./assets/logs.png"><span>You give</span></div>
+            <span class="wiki-gallery-arrow">→</span>
+            <div class="wiki-gallery-item"><img src="./assets/fish2.png"><span>You get</span></div>
+          </div>
         </section>
 
       </div>
