@@ -1797,15 +1797,3 @@ socket.on('fireToggled', ({ fireOn }) => {
   renderMapItems();
   appendChatLog('System', `Fire is now ${clientFireOn ? 'ON' : 'OFF'}.`);
 });
-
-// Test keys (debug only — guarded so typing "k"/"l" in chat doesn't trigger these)
-document.addEventListener('keydown', (e) => {
-  if (document.activeElement === chatInput) return;
-  if (e.key === 'k' || e.key === 'K') {
-    socket.emit('spawnMonsterNow');
-    appendChatLog('System', 'Requested immediate monster spawn (test).');
-  } else if (e.key === 'l' || e.key === 'L') {
-    socket.emit('spawnLavaNow');
-    appendChatLog('System', 'Requested immediate lava spawn (test).');
-  }
-});
